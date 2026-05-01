@@ -200,9 +200,9 @@ def test_conditional_formatting_applied_once_to_column_l(live_client):
             all_range_strings.append(r_str)
 
     # Verify at least one rule targets column L (0-based index 11)
-    col_l_rules = [r for r in rules if any(
-        getattr(rng, "startColumnIndex", None) == 11 for rng in r.ranges
-    )]
+    col_l_rules = [
+        r for r in rules if any(getattr(rng, "startColumnIndex", None) == 11 for rng in r.ranges)
+    ]
 
     assert col_l_rules, (
         f"Expected at least one conditional format rule covering column {SCORE_COLUMN_LETTER} "

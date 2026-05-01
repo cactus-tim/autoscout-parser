@@ -31,9 +31,7 @@ class Settings(BaseSettings):
 
     # Integration tests
     integration_tests: bool = Field(False, description="Set to 1 to enable integration tests")
-    integration_sheet_id: str = Field(
-        "", description="Google Sheets ID used by integration tests"
-    )
+    integration_sheet_id: str = Field("", description="Google Sheets ID used by integration tests")
 
     # Paths
     brief_path: str = Field("brief.md", description="Path to the scoring brief Markdown file")

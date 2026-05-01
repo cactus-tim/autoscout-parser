@@ -107,10 +107,7 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
             new_listings = all_listings
         else:
             existing = sheets.get_existing_ids()
-            new_listings = [
-                lst for lst in all_listings
-                if lst.listing_id not in existing
-            ]
+            new_listings = [lst for lst in all_listings if lst.listing_id not in existing]
         logger.info(
             "Dedup: %d total → %d new (skipping %d already in sheet)",
             len(all_listings),

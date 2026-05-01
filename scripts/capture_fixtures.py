@@ -99,11 +99,7 @@ async def _capture() -> None:
             node = tree.css_first("script#__NEXT_DATA__")
             if node:
                 data = orjson.loads(node.text(strip=True))
-                listings = (
-                    data.get("props", {})
-                    .get("pageProps", {})
-                    .get("listings", [])
-                )
+                listings = data.get("props", {}).get("pageProps", {}).get("listings", [])
                 if listings and isinstance(listings, list) and listings[0].get("url"):
                     detail_url = listings[0]["url"]
                     if not detail_url.startswith("http"):
@@ -116,13 +112,9 @@ async def _capture() -> None:
             print(f"Fetching detail page: {detail_url}")
             detail_page = await browser.new_page()
             try:
-                await detail_page.goto(
-                    detail_url, wait_until="networkidle", timeout=45000
-                )
+                await detail_page.goto(detail_url, wait_until="networkidle", timeout=45000)
                 try:
-                    await detail_page.wait_for_selector(
-                        "script#__NEXT_DATA__", timeout=15000
-                    )
+                    await detail_page.wait_for_selector("script#__NEXT_DATA__", timeout=15000)
                 except PlaywrightTimeoutError:
                     print(
                         "WARNING: __NEXT_DATA__ not found on detail page.",

@@ -58,8 +58,7 @@ def extract_next_data(html: str) -> dict[str, Any]:
         except OSError:
             dump_path = "<unable to write dump>"
         raise NextDataMissingError(
-            f"__NEXT_DATA__ script tag not found in HTML. "
-            f"Raw HTML saved to: {dump_path}"
+            f"__NEXT_DATA__ script tag not found in HTML. Raw HTML saved to: {dump_path}"
         )
 
     raw_json = node.text(strip=True)
@@ -168,11 +167,7 @@ def parse_listings_page(data: dict[str, Any]) -> list[Listing]:
     # Path 2: initialState fallback
     if raw_listings is None:
         try:
-            results = (
-                page_props.get("initialState", {})
-                .get("search", {})
-                .get("results")
-            )
+            results = page_props.get("initialState", {}).get("search", {}).get("results")
             if isinstance(results, list):
                 raw_listings = results
                 matched_path = "props.pageProps.initialState.search.results"

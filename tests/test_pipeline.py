@@ -87,6 +87,7 @@ _PATCH_CONF_LOG = "autoscout_pipeline.pipeline.configure_logging"
 
 def _make_async_gen(items):
     """Return a coroutine that when called returns an async generator of *items*."""
+
     async def _gen(*args, **kwargs):
         for item in items:
             yield item
@@ -109,12 +110,22 @@ async def test_pipeline_skips_listings_already_in_sheet():
         patch(_PATCH_ITER, side_effect=_make_async_gen(listings)),
         patch(_PATCH_SHEETS) as MockSheets,
         patch(_PATCH_SCORER),
-        patch(_PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results) as mock_score_many,
+        patch(
+            _PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results
+        ) as mock_score_many,
         patch(_PATCH_NOTIFIER),
     ):
         mock_client = MockSheets.return_value
         # lid-0 already exists in the sheet
-        mock_client.get_existing_ids.return_value = {"lid-0": {"row": 2, "price_eur": 18000, "status": "active", "first_seen": _TODAY, "last_seen": _TODAY}}
+        mock_client.get_existing_ids.return_value = {
+            "lid-0": {
+                "row": 2,
+                "price_eur": 18000,
+                "status": "active",
+                "first_seen": _TODAY,
+                "last_seen": _TODAY,
+            }
+        }
         mock_client.upsert_listings.return_value = None
         mock_client.record_run.return_value = None
 
@@ -219,7 +230,9 @@ async def test_pipeline_dry_run_makes_no_writes():
         patch(_PATCH_ITER, side_effect=_make_async_gen(listings)),
         patch(_PATCH_SHEETS) as MockSheets,
         patch(_PATCH_SCORER),
-        patch(_PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results) as mock_score_many,
+        patch(
+            _PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results
+        ) as mock_score_many,
         patch(_PATCH_NOTIFIER) as MockNotifier,
     ):
         mock_client = MockSheets.return_value
@@ -264,7 +277,13 @@ async def test_pipeline_records_run_summary():
     ):
         mock_client = MockSheets.return_value
         mock_client.get_existing_ids.return_value = {
-            "lid-0": {"row": 2, "price_eur": 18000, "status": "active", "first_seen": _TODAY, "last_seen": _TODAY}
+            "lid-0": {
+                "row": 2,
+                "price_eur": 18000,
+                "status": "active",
+                "first_seen": _TODAY,
+                "last_seen": _TODAY,
+            }
         }
         mock_client.upsert_listings.return_value = None
         mock_client.record_run.return_value = None
@@ -297,9 +316,7 @@ def test_pipeline_uses_nested_scored_listing_access():
     assert "s.listing." in source, (
         "pipeline.run() must access scored listings via NESTED layout (s.listing.*)"
     )
-    assert "s.score." in source, (
-        "pipeline.run() must access scores via NESTED layout (s.score.*)"
-    )
+    assert "s.score." in source, "pipeline.run() must access scores via NESTED layout (s.score.*)"
 
 
 # ---------------------------------------------------------------------------

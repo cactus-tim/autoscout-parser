@@ -92,9 +92,7 @@ class PriceChange(BaseModel):
     @model_validator(mode="after")
     def _prices_must_differ(self) -> "PriceChange":
         if self.old_price == self.new_price:
-            raise ValueError(
-                f"old_price and new_price must differ (both are {self.old_price})"
-            )
+            raise ValueError(f"old_price and new_price must differ (both are {self.old_price})")
         return self
 
 

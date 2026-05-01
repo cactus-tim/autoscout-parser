@@ -65,7 +65,9 @@ def _make_score(score: int = 8) -> ListingScore:
     )
 
 
-def _make_scored(listing_id: str = "abc123", price_eur: int = 15000, score: int = 8) -> ScoredListing:
+def _make_scored(
+    listing_id: str = "abc123", price_eur: int = 15000, score: int = 8
+) -> ScoredListing:
     return ScoredListing(
         listing=_make_listing(listing_id=listing_id, price_eur=price_eur),
         score=_make_score(score=score),
@@ -138,8 +140,9 @@ class TestBootstrap:
     def test_bootstrap_creates_missing_tabs(self, client_factory) -> None:
         """When only 'listings' exists, bootstrap() must create the other two tabs."""
         sp = _make_spreadsheet_mock([LISTINGS_TAB])
-        with patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread, patch(
-            "autoscout_pipeline.sheets.client.apply_score_conditional_formatting"
+        with (
+            patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread,
+            patch("autoscout_pipeline.sheets.client.apply_score_conditional_formatting"),
         ):
             mock_gspread.service_account.return_value.open_by_key.return_value = sp
             client = SheetsClient(creds_path=Path("/fake/creds.json"), sheet_id="FAKE_ID")
@@ -156,8 +159,9 @@ class TestBootstrap:
         # Corrupt the listings tab headers
         sp.worksheet(LISTINGS_TAB).row_values.return_value = ["wrong", "headers"]
 
-        with patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread, patch(
-            "autoscout_pipeline.sheets.client.apply_score_conditional_formatting"
+        with (
+            patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread,
+            patch("autoscout_pipeline.sheets.client.apply_score_conditional_formatting"),
         ):
             mock_gspread.service_account.return_value.open_by_key.return_value = sp
             client = SheetsClient(creds_path=Path("/fake/creds.json"), sheet_id="FAKE_ID")
@@ -168,9 +172,12 @@ class TestBootstrap:
         """bootstrap() must call apply_score_conditional_formatting on listings worksheet."""
         sp = _make_spreadsheet_mock([LISTINGS_TAB, PRICE_HISTORY_TAB, RUNS_TAB])
 
-        with patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread, patch(
-            "autoscout_pipeline.sheets.client.apply_score_conditional_formatting"
-        ) as mock_fmt:
+        with (
+            patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread,
+            patch(
+                "autoscout_pipeline.sheets.client.apply_score_conditional_formatting"
+            ) as mock_fmt,
+        ):
             mock_gspread.service_account.return_value.open_by_key.return_value = sp
             client = SheetsClient(creds_path=Path("/fake/creds.json"), sheet_id="FAKE_ID")
             client.bootstrap()
@@ -186,8 +193,9 @@ class TestBootstrap:
         # Simulate RUNS_TAB being blank (no existing headers)
         sp.worksheet(RUNS_TAB).row_values.return_value = []
 
-        with patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread, patch(
-            "autoscout_pipeline.sheets.client.apply_score_conditional_formatting"
+        with (
+            patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread,
+            patch("autoscout_pipeline.sheets.client.apply_score_conditional_formatting"),
         ):
             mock_gspread.service_account.return_value.open_by_key.return_value = sp
             client = SheetsClient(creds_path=Path("/fake/creds.json"), sheet_id="FAKE_ID")
@@ -208,8 +216,9 @@ class TestUpsertListings:
         listings_ws = sp.worksheet(LISTINGS_TAB)
         listings_ws.get_all_records.return_value = []
 
-        with patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread, patch(
-            "autoscout_pipeline.sheets.client.apply_score_conditional_formatting"
+        with (
+            patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread,
+            patch("autoscout_pipeline.sheets.client.apply_score_conditional_formatting"),
         ):
             mock_gspread.service_account.return_value.open_by_key.return_value = sp
             client = SheetsClient(creds_path=Path("/fake/creds.json"), sheet_id="FAKE_ID")
@@ -360,8 +369,9 @@ class TestUpsertListings:
 class TestScoredToRow:
     def _client(self) -> SheetsClient:
         sp = _make_spreadsheet_mock([LISTINGS_TAB, PRICE_HISTORY_TAB, RUNS_TAB])
-        with patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread, patch(
-            "autoscout_pipeline.sheets.client.apply_score_conditional_formatting"
+        with (
+            patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread,
+            patch("autoscout_pipeline.sheets.client.apply_score_conditional_formatting"),
         ):
             mock_gspread.service_account.return_value.open_by_key.return_value = sp
             return SheetsClient(creds_path=Path("/fake/creds.json"), sheet_id="FAKE_ID")
@@ -369,13 +379,17 @@ class TestScoredToRow:
     def test_scored_to_row_builds_16_element_row(self) -> None:
         client = self._client()
         scored = _make_scored()
-        row = client._scored_to_row(scored, first_seen="2026-04-01", last_seen="2026-05-01", status="active")
+        row = client._scored_to_row(
+            scored, first_seen="2026-04-01", last_seen="2026-05-01", status="active"
+        )
         assert len(row) == 16
 
     def test_scored_to_row_field_positions(self) -> None:
         client = self._client()
         scored = _make_scored("myid", price_eur=12345, score=7)
-        row = client._scored_to_row(scored, first_seen="2026-04-01", last_seen="2026-05-01", status="active")
+        row = client._scored_to_row(
+            scored, first_seen="2026-04-01", last_seen="2026-05-01", status="active"
+        )
 
         assert row[LISTINGS_HEADERS.index("listing_id")] == "myid"
         assert row[LISTINGS_HEADERS.index("price_eur")] == 12345
@@ -394,7 +408,9 @@ class TestScoredToRow:
             cons=["x", "y"],
         )
         scored = ScoredListing(listing=listing, score=score, scored_at=_NOW)
-        row = client._scored_to_row(scored, first_seen="2026-04-01", last_seen="2026-05-01", status="active")
+        row = client._scored_to_row(
+            scored, first_seen="2026-04-01", last_seen="2026-05-01", status="active"
+        )
 
         assert row[LISTINGS_HEADERS.index("pros")] == "a; b; c"
         assert row[LISTINGS_HEADERS.index("cons")] == "x; y"
@@ -403,7 +419,9 @@ class TestScoredToRow:
         client = self._client()
         listing = _make_listing(location=None, country=None)
         scored = ScoredListing(listing=listing, score=_make_score(), scored_at=_NOW)
-        row = client._scored_to_row(scored, first_seen="2026-04-01", last_seen="2026-05-01", status="active")
+        row = client._scored_to_row(
+            scored, first_seen="2026-04-01", last_seen="2026-05-01", status="active"
+        )
 
         assert row[LISTINGS_HEADERS.index("location")] == ""
         assert row[LISTINGS_HEADERS.index("country")] == ""
@@ -417,8 +435,9 @@ class TestScoredToRow:
 class TestRecordRun:
     def _client_and_sp(self) -> tuple[SheetsClient, MagicMock]:
         sp = _make_spreadsheet_mock([LISTINGS_TAB, PRICE_HISTORY_TAB, RUNS_TAB])
-        with patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread, patch(
-            "autoscout_pipeline.sheets.client.apply_score_conditional_formatting"
+        with (
+            patch("autoscout_pipeline.sheets.client.gspread") as mock_gspread,
+            patch("autoscout_pipeline.sheets.client.apply_score_conditional_formatting"),
         ):
             mock_gspread.service_account.return_value.open_by_key.return_value = sp
             client = SheetsClient(creds_path=Path("/fake/creds.json"), sheet_id="FAKE_ID")

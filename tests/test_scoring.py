@@ -152,9 +152,7 @@ async def test_score_returns_sentinel_on_api_error():
 
     scorer = LLMScorer(api_key="x")
     scorer._client = MagicMock()
-    scorer._client.chat.completions.create = AsyncMock(
-        side_effect=Exception("openai timeout")
-    )
+    scorer._client.chat.completions.create = AsyncMock(side_effect=Exception("openai timeout"))
 
     result = await scorer.score(listing)
     assert isinstance(result, ListingScore)
@@ -197,9 +195,7 @@ async def test_score_many_respects_semaphore():
     concurrency = 5
     n_listings = 20
 
-    listings = [
-        _make_listing(listing_id=f"listing-{i}") for i in range(n_listings)
-    ]
+    listings = [_make_listing(listing_id=f"listing-{i}") for i in range(n_listings)]
 
     peak_inflight = 0
     current_inflight = 0

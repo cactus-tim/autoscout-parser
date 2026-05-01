@@ -72,6 +72,7 @@ def _make_listing_score() -> ListingScore:
 # Mock builders
 # ---------------------------------------------------------------------------
 
+
 def _make_fetch_mock():
     """Async mock that returns fixture HTML for any URL.
 
@@ -80,10 +81,10 @@ def _make_fetch_mock():
     """
     call_count = 0
     _EMPTY_PAGE = (
-        '<html><head></head><body>'
+        "<html><head></head><body>"
         '<script id="__NEXT_DATA__" type="application/json">'
         '{"props":{"pageProps":{"listings":[]}}}'
-        '</script></body></html>'
+        "</script></body></html>"
     )
 
     async def _fetch(url: str) -> str:
@@ -151,6 +152,7 @@ def _make_httpx_post_mock():
 # ---------------------------------------------------------------------------
 # Main smoke runner
 # ---------------------------------------------------------------------------
+
 
 async def _smoke() -> None:
     settings = Settings(  # type: ignore[call-arg]

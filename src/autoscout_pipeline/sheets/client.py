@@ -89,7 +89,9 @@ class SheetsClient:
         for tab_name, expected_headers in _TAB_HEADERS.items():
             if tab_name not in existing_titles:
                 logger.info("Creating missing tab '%s'", tab_name)
-                ws = self._spreadsheet.add_worksheet(title=tab_name, rows=10000, cols=len(expected_headers))
+                ws = self._spreadsheet.add_worksheet(
+                    title=tab_name, rows=10000, cols=len(expected_headers)
+                )
                 ws.append_row(expected_headers)
             else:
                 ws = self._spreadsheet.worksheet(tab_name)
@@ -185,9 +187,7 @@ class SheetsClient:
                 # Detect price change
                 if s.listing.price_eur != old_price:
                     updates.append(("price_eur", s.listing.price_eur))
-                    price_history_rows.append(
-                        [lid, today, old_price, s.listing.price_eur]
-                    )
+                    price_history_rows.append([lid, today, old_price, s.listing.price_eur])
 
                 # Resurrect removed listing
                 if old_status == "removed":
@@ -206,11 +206,9 @@ class SheetsClient:
                 and meta["status"] == "active"
                 and meta.get("last_seen", today) < today
             ):
-                    sheet_row = meta["row"]
-                    col_letter = _col_letter(_COL_STATUS)
-                    update_cells.append(
-                        {"range": f"{col_letter}{sheet_row}", "values": [["removed"]]}
-                    )
+                sheet_row = meta["row"]
+                col_letter = _col_letter(_COL_STATUS)
+                update_cells.append({"range": f"{col_letter}{sheet_row}", "values": [["removed"]]})
 
         # Batch writes
         if new_rows:
@@ -268,20 +266,20 @@ class SheetsClient:
              pros_joined, cons_joined, status]
         """
         return [
-            s.listing.listing_id,       # 0  listing_id
-            s.listing.url,              # 1  url
-            first_seen,                 # 2  first_seen
-            last_seen,                  # 3  last_seen
-            s.listing.brand,            # 4  brand
-            s.listing.model,            # 5  model
-            s.listing.year,             # 6  year
-            s.listing.mileage_km,       # 7  mileage_km
-            s.listing.price_eur,        # 8  price_eur
-            s.listing.location or "",   # 9  location
-            s.listing.country or "",    # 10 country
-            s.score.score,              # 11 score  ← column L
-            s.score.reasoning,          # 12 reasoning
-            "; ".join(s.score.pros),    # 13 pros
-            "; ".join(s.score.cons),    # 14 cons
-            status,                     # 15 status
+            s.listing.listing_id,  # 0  listing_id
+            s.listing.url,  # 1  url
+            first_seen,  # 2  first_seen
+            last_seen,  # 3  last_seen
+            s.listing.brand,  # 4  brand
+            s.listing.model,  # 5  model
+            s.listing.year,  # 6  year
+            s.listing.mileage_km,  # 7  mileage_km
+            s.listing.price_eur,  # 8  price_eur
+            s.listing.location or "",  # 9  location
+            s.listing.country or "",  # 10 country
+            s.score.score,  # 11 score  ← column L
+            s.score.reasoning,  # 12 reasoning
+            "; ".join(s.score.pros),  # 13 pros
+            "; ".join(s.score.cons),  # 14 cons
+            status,  # 15 status
         ]

@@ -1,0 +1,43 @@
+[project]
+name = "autoscout-pipeline"
+version = "0.1.0"
+description = "Daily AutoScout24 MINI listing scraper with LLM scoring and Google Sheets persistence"
+readme = "README.md"
+authors = [
+    { name = "minik", email = "shop.without1@gmail.com" }
+]
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "cloverlabs-camoufox[geoip]>=0.5,<0.6",
+    "instructor>=1.15,<2",
+    "openai",
+    "gspread>=6.1.4",
+    "gspread-formatting",
+    "pydantic>=2",
+    "pydantic-settings",
+    "httpx",
+    "tenacity",
+    "typer",
+    "orjson",
+    "selectolax",
+    "python-dotenv",
+]
+
+[project.scripts]
+autoscout-pipeline = "autoscout_pipeline.pipeline:cli"
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "respx",
+    "ruff",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

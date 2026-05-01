@@ -1,0 +1,29 @@
+# Virtual environment
+.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Credentials and secrets
+creds.json
+.env
+
+# AutoScout24 HTML dumps written on parse errors
+/tmp/as24_*
+
+# uv lock file artifacts (keep uv.lock committed)
+# uv.lock — intentionally committed
+
+# Build artifacts
+dist/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

@@ -3,10 +3,11 @@
 ## SESSION PROGRESS (2026-05-01)
 
 ### COMPLETED
-- (nothing yet)
+- Phase 1 (Steps 1.1–1.4): Full project bootstrap — uv src-layout init, all deps in pyproject.toml, package stubs, tooling files. All acceptance gates pass.
+- Phase 2 (Steps 2.1–2.2): Pydantic models fully implemented. Five models (Listing, ListingScore, ScoredListing, PriceChange, RunRecord) in src/autoscout_pipeline/models.py. ScoredListing uses NESTED composition (listing: Listing, score: ListingScore, scored_at: datetime). All datetimes require tz-aware UTC via field_validator. PriceChange rejects equal prices via model_validator. RunRecord truncates notes at 500 chars. 44 tests in tests/test_models.py pass; ruff clean.
 
 ### IN PROGRESS
-- Not started
+- Phase 3: Scraper Module (Steps 3.1–3.6)
 
 ### BLOCKERS
 - None
@@ -27,7 +28,7 @@
 **`src/autoscout_pipeline/models.py`**
 - Role: Canonical data model consumed by all pipeline modules
 - Planned change: Implement Listing, ListingScore, ScoredListing (NESTED), RunRecord, PriceChange
-- Status: NOT STARTED
+- Status: DONE (Phase 2)
 
 **`src/autoscout_pipeline/config.py`**
 - Role: Single Settings class via pydantic-settings; reads all env vars from .env

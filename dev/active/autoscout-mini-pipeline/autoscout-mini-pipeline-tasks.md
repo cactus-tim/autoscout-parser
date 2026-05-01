@@ -10,11 +10,11 @@
 - [ ] 1.4 Create support files: `.python-version`, `.gitignore`, `.env.example`, `brief.md` (placeholder), `ruff.toml`, `README.md` skeleton, `tests/__init__.py`, `tests/conftest.py`, `tests_integration/__init__.py` — repo root + tests/
   - Acceptance: `uv run pytest -q` runs zero tests and exits 0
 
-## Phase 2: Pydantic Models — NOT STARTED
-- [ ] 2.1 Implement `Listing`, `ListingScore`, `ScoredListing` (NESTED: `listing: Listing`, `score: ListingScore`, `scored_at: datetime`), `RunRecord`, `PriceChange` — `src/autoscout_pipeline/models.py`
+## Phase 2: Pydantic Models — COMPLETE
+- [x] 2.1 Implement `Listing`, `ListingScore`, `ScoredListing` (NESTED: `listing: Listing`, `score: ListingScore`, `scored_at: datetime`), `RunRecord`, `PriceChange` — `src/autoscout_pipeline/models.py`
   - Acceptance: all five importable from `autoscout_pipeline.models`; ScoredListing has NESTED layout; all datetimes are timezone-aware UTC
-- [ ] 2.2 Write round-trip, validator, and composition tests — `tests/test_models.py`
-  - Acceptance: `uv run pytest tests/test_models.py -v` — 5+ tests pass; ListingScore rejects score=0/11; PriceChange rejects equal prices; RunRecord.notes truncated at 500 chars; ScoredListing scored_at is timezone-aware
+- [x] 2.2 Write round-trip, validator, and composition tests — `tests/test_models.py`
+  - Acceptance: `uv run pytest tests/test_models.py -v` — 44 tests pass; ListingScore rejects score=0/11; PriceChange rejects equal prices; RunRecord.notes truncated at 500 chars; ScoredListing scored_at is timezone-aware
 
 ## Phase 3: Scraper Module — NOT STARTED
 - [ ] 3.1 Implement `NextDataMissingError`, `EmptyResultsError` — `src/autoscout_pipeline/scraper/errors.py`

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily AutoScout24 MINI pipeline
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+RandomizedDelaySec=600
+Persistent=true
+Unit=autoscout-pipeline.service
+
+[Install]
+WantedBy=timers.target

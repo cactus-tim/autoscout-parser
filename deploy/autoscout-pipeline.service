@@ -1,0 +1,17 @@
+[Unit]
+Description=AutoScout24 MINI pipeline (daily run)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=autoscout
+WorkingDirectory=/opt/autoscout
+EnvironmentFile=/opt/autoscout/.env
+ExecStart=/opt/autoscout/.venv/bin/autoscout-pipeline
+TimeoutStartSec=1800
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

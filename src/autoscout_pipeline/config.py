@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     tg_chat_id: str = Field("", description="Telegram chat/channel ID")
 
     # Google Sheets
-    sheet_id: str = Field("", description="Google Sheets spreadsheet ID")
+    sheet_id: str = Field(..., description="Google Sheets spreadsheet ID")
 
     # Scoring
     score_notify_threshold: int = Field(8, description="Notify when score >= this value")

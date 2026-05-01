@@ -177,14 +177,19 @@ async def test_pipeline_handles_scrape_error():
 
 
 # ---------------------------------------------------------------------------
-# Test 3: threshold notification — send_batch called with full list
+# Test 3: orchestrator passes full scored list to notifier for threshold filtering
 # ---------------------------------------------------------------------------
 
 
-async def test_pipeline_only_notifies_above_threshold():
+async def test_pipeline_passes_all_scored_to_notifier_for_threshold_filtering():
     """3 scored listings with scores [5, 7, 9]; TelegramNotifier.send_batch IS called
     with all 3 (the notifier's threshold gate is exercised inside send_batch itself,
-    not in the pipeline).  Pipeline passes the full scored list."""
+    not in the pipeline).
+
+    Threshold filtering happens INSIDE the notifier (see test_notify.py for coverage
+    of which listings are actually sent).  This test only verifies that the orchestrator
+    hands off the full scored list to the notifier without pre-filtering.
+    """
     listings = [_make_listing(f"lid-{i}") for i in range(3)]
     scores = [5, 7, 9]
     scored_results = [_make_scored(f"lid-{i}", score=scores[i]) for i in range(3)]
@@ -220,7 +225,7 @@ async def test_pipeline_only_notifies_above_threshold():
 
 
 async def test_pipeline_dry_run_makes_no_writes():
-    """dry_run=True: bootstrap, upsert_listings, record_run NOT called;
+    """dry_run=True: SheetsClient is NOT instantiated at all (no creds required);
     send_batch NOT called; score_many IS still called (preview)."""
     listings = [_make_listing(f"lid-{i}") for i in range(2)]
     scored_results = [_make_scored(f"lid-{i}", score=9) for i in range(2)]
@@ -235,17 +240,14 @@ async def test_pipeline_dry_run_makes_no_writes():
         ) as mock_score_many,
         patch(_PATCH_NOTIFIER) as MockNotifier,
     ):
-        mock_client = MockSheets.return_value
         mock_notifier_instance = MockNotifier.return_value
         mock_notifier_instance.send_batch = AsyncMock(return_value=0)
 
         settings = _make_settings()
         record = await pipeline_mod.run(settings, dry_run=True)
 
-    # Writes MUST NOT happen
-    mock_client.bootstrap.assert_not_called()
-    mock_client.upsert_listings.assert_not_called()
-    mock_client.record_run.assert_not_called()
+    # SheetsClient must NOT be instantiated in dry-run (no GCP creds needed)
+    MockSheets.assert_not_called()
 
     # Telegram MUST NOT fire
     mock_notifier_instance.send_batch.assert_not_called()

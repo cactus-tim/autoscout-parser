@@ -203,7 +203,7 @@ async def test_send_batch_sleeps_between_sends() -> None:
         sent = await notifier(threshold=8).send_batch(scored_list)
 
     assert sent == 3
-    assert sleep_mock.call_count == 3
+    assert sleep_mock.call_count == 2
     # Every call must use the 0.5-second delay
     for call in sleep_mock.call_args_list:
         assert call.args[0] == 0.5

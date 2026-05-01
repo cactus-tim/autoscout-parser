@@ -1,6 +1,13 @@
 # Test Fixtures
 
-These fixtures are **synthetic** — they were hand-crafted to satisfy the parse contract
+> **Important:** These fixtures are **synthetic** (hand-crafted to match the expected
+> `__NEXT_DATA__` shape), **NOT** live captures from autoscout24.com. To replace them
+> with real captures: run `uv run python -m scripts.capture_fixtures` from a host with
+> network access and the camoufox Firefox binary downloaded. Synthetic fixtures cover
+> the parser contract but won't catch live schema drift; running the script against the
+> live site periodically is the safety net.
+
+These fixtures were hand-crafted to satisfy the parse contract
 without requiring a live network connection or a headless browser.
 
 ## Files

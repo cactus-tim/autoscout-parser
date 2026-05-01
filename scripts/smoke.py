@@ -195,7 +195,7 @@ async def _smoke() -> None:
     # threshold >= 8 → indices 1(8), 2(9), 6(8), 7(9), 11(8) → 5 qualifying
     # But the notifier checks > threshold? Let's parse from record notes instead.
     notes = record.notes
-    scraped = len(notes) and _extract_int(notes, "scraped=")
+    scraped = _extract_int(notes, "scraped=")
     new = _extract_int(notes, "new=")
     scored_count = _extract_int(notes, "scored=")
 

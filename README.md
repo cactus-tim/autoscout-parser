@@ -31,18 +31,17 @@ uv run autoscout-pipeline                # full run
 All settings are read from environment variables (loaded from `.env` via
 `pydantic-settings`). Copy `.env.example` to `.env` and fill in every value.
 
-| Variable              | Required | Default               | Description                                                      |
-|-----------------------|----------|-----------------------|------------------------------------------------------------------|
-| `OPENAI_API_KEY`      | yes      | —                     | OpenAI API key. Paid tier (≥500 RPM) required for production.    |
-| `SHEET_ID`            | yes      | —                     | Google Sheets ID from the URL: `.../d/<SHEET_ID>/edit`.          |
-| `CREDS_PATH`          | yes      | `creds.json`          | Path to GCP service-account JSON file.                           |
-| `TG_TOKEN`            | yes      | —                     | Telegram bot token from @BotFather.                              |
-| `TG_CHAT_ID`          | yes      | —                     | Telegram chat or channel ID from @userinfobot.                   |
-| `NOTIFY_THRESHOLD`    | no       | `8`                   | Minimum score (1–10) to trigger a Telegram notification.         |
-| `OPENAI_MODEL`        | no       | `gpt-4.1-nano`        | OpenAI model used for scoring.                                   |
-| `AS24_THROTTLE_MIN`   | no       | `2.0`                 | Minimum seconds to wait between scraper page requests.           |
-| `AS24_THROTTLE_MAX`   | no       | `5.0`                 | Maximum seconds to wait between scraper page requests.           |
-| `LOG_LEVEL`           | no       | `INFO`                | Python logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`).      |
+| Variable                | Required | Default               | Description                                                                        |
+|-------------------------|----------|-----------------------|------------------------------------------------------------------------------------|
+| `OPENAI_API_KEY`        | yes      | —                     | OpenAI API key. Paid tier (≥500 RPM) required for production.                      |
+| `SHEET_ID`              | yes      | —                     | Google Sheets ID from the URL: `.../d/<SHEET_ID>/edit`.                            |
+| `CREDS_PATH`            | yes      | `creds.json`          | Path to GCP service-account JSON file.                                             |
+| `TG_TOKEN`              | no       | `""`                  | Telegram bot token from @BotFather. Leave blank to disable Telegram notifications. |
+| `TG_CHAT_ID`            | no       | `""`                  | Telegram chat or channel ID from @userinfobot. Leave blank to disable.             |
+| `SCORE_NOTIFY_THRESHOLD`| no       | `8`                   | Minimum score (1–10) to trigger a Telegram notification.                           |
+| `OPENAI_MODEL`          | no       | `gpt-4.1-nano`        | OpenAI model used for scoring.                                                     |
+| `AS24_THROTTLE_MIN`     | no       | `2.0`                 | Minimum seconds to wait between scraper page requests.                             |
+| `AS24_THROTTLE_MAX`     | no       | `6.0`                 | Maximum seconds to wait between scraper page requests.                             |
 
 ---
 

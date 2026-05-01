@@ -94,14 +94,16 @@ class TelegramNotifier:
 
         A 0.5-second delay is inserted *between* consecutive sends to
         respect Telegram's per-chat rate limit (1 message/second).
-        The delay is not added after the last message.
+        The delay is added before each send except the first, so N sends
+        produce exactly N-1 sleeps.
 
         Returns:
             Number of messages successfully sent.
         """
         sent = 0
         for s in scored_list:
+            if sent > 0:
+                await asyncio.sleep(0.5)
             if await self.send(s):
                 sent += 1
-                await asyncio.sleep(0.5)
         return sent

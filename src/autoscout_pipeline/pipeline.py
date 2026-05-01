@@ -48,9 +48,9 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
 
     Sequence:
     1. Configure logging.
-    2. Construct SheetsClient and (if not dry_run) call bootstrap().
+    2. If not dry_run: construct SheetsClient and call bootstrap().
     3. Iterate listings via iter_listings(SEARCH_CRITERIA).
-    4. Dedup: filter out listings already known to the sheet.
+    4. Dedup: if not dry_run, filter out listings already known to the sheet.
     5. Score new listings via LLMScorer + score_many().
     6. If not dry_run: upsert scored listings to Sheets.
     7. Build a RunRecord summary.
@@ -65,6 +65,8 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
     dry_run:
         When True, skip all writes and Telegram notifications.  Scraping and
         scoring still run so the operator can preview what would be processed.
+        SheetsClient is NOT constructed in dry_run mode, so no GCP credentials
+        are required for a dry-run smoke check.
 
     Returns
     -------
@@ -78,22 +80,25 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
     all_listings = []
     new_listings = []
     scored: list[ScoredListing] = []
-    existing: dict = {}
 
     try:
-        # --- 2. Construct SheetsClient ---
-        sheets = SheetsClient(
-            creds_path=Path(settings.creds_path),
-            sheet_id=settings.sheet_id,
-        )
+        # --- 2. Construct SheetsClient (only when writes are needed) ---
         if not dry_run:
+            sheets = SheetsClient(
+                creds_path=Path(settings.creds_path),
+                sheet_id=settings.sheet_id,
+            )
             sheets.bootstrap()
             logger.info("Sheets bootstrap complete")
 
         # --- 3. Iterate listings ---
         logger.info("Scraping listings with criteria: %s", SEARCH_CRITERIA)
         try:
-            async for listing in iter_listings(SEARCH_CRITERIA):
+            async for listing in iter_listings(
+                SEARCH_CRITERIA,
+                throttle_min=settings.as24_throttle_min,
+                throttle_max=settings.as24_throttle_max,
+            ):
                 all_listings.append(listing)
         except EmptyResultsError as exc:
             logger.error("Scrape produced no results: %s", exc)

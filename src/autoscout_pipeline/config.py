@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     as24_throttle_min: float = Field(2.0, description="Minimum seconds between page requests")
     as24_throttle_max: float = Field(6.0, description="Maximum seconds between page requests")
 
+    # Enrichment
+    as24_enrich: bool = Field(
+        True,
+        description="Fetch and parse detail pages to enrich listings with equipment/colour (set AS24_ENRICH=false to skip)",
+    )
+
     # Integration tests
     integration_tests: bool = Field(False, description="Set to 1 to enable integration tests")
     integration_sheet_id: str = Field("", description="Google Sheets ID used by integration tests")

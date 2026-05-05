@@ -29,7 +29,7 @@ def _make_listing(listing_id: str = "lid-1", price_eur: int = 18_000) -> Listing
         listing_id=listing_id,
         url=f"https://www.autoscout24.com/lst/{listing_id}",
         brand="MINI",
-        model="Hatch",
+        model="Cooper",
         year=2021,
         mileage_km=25_000,
         price_eur=price_eur,

@@ -65,6 +65,9 @@ def extract_next_data(html: str) -> dict[str, Any]:
     return orjson.loads(raw_json)
 
 
+_BASE_URL = "https://www.autoscout24.com"
+
+
 def _parse_year(raw: str | int | None) -> int:
     """Parse a year from various AutoScout24 date formats."""
     if raw is None:
@@ -72,48 +75,110 @@ def _parse_year(raw: str | int | None) -> int:
     if isinstance(raw, int):
         return raw
     s = str(raw).strip()
-    # Handles "2020-06", "2020", "2020-06-01", etc.
-    if s:
-        return int(s.split("-")[0])
+    # Handles "2020-06", "2020", "2020-06-01", "11/2021", etc.
+    if not s:
+        return 2000
+    # MM/YYYY
+    if "/" in s:
+        last = s.split("/")[-1]
+        if last.isdigit():
+            return int(last)
+    # ISO-like prefix
+    head = s.split("-")[0]
+    if head.isdigit():
+        return int(head)
+    # Trailing 4-digit year
+    import re
+
+    m = re.search(r"(19|20)\d{2}", s)
+    if m:
+        return int(m.group(0))
     return 2000
+
+
+def _parse_int(raw: Any, default: int = 0) -> int:
+    """Parse an int from int/float/str (e.g. ``"29,000 km"``, ``"€ 16,950"``)."""
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return int(raw)
+    if isinstance(raw, (int, float)):
+        return int(raw)
+    s = str(raw)
+    digits = "".join(ch for ch in s if ch.isdigit())
+    if not digits:
+        return default
+    return int(digits)
 
 
 def _listing_from_dict(raw: dict[str, Any]) -> Listing | None:
     """Build a ``Listing`` from a raw AutoScout24 listing dict.
 
-    Returns ``None`` if required fields are missing or invalid.
-    Uses ``.get()`` throughout to handle schema variance gracefully.
+    Tolerates two on-the-wire schemas:
+
+    1. **Flat (legacy)** — top-level ``make``/``model``/``mileage``/``price``/``year``.
+    2. **Nested (current)** — ``vehicle.{make,model,mileageInKm}`` plus
+       ``price.priceFormatted`` (e.g. ``"€ 16,950"``) and
+       ``vehicleDetails[*].ariaLabel == "First registration"`` carrying the date.
+
+    Returns ``None`` only if no listing identifier can be found.
     """
     listing_id = raw.get("id") or raw.get("listing_id")
     if not listing_id:
         return None
 
-    url = raw.get("url") or ""
-    brand = raw.get("make") or ""
-    model = raw.get("model") or ""
+    vehicle = raw.get("vehicle") or {}
+    if not isinstance(vehicle, dict):
+        vehicle = {}
 
-    year_raw = raw.get("firstRegistrationDate") or raw.get("year")
+    # URL: relative paths get prefixed with the AS24 base
+    url = raw.get("url") or ""
+    if isinstance(url, str) and url.startswith("/"):
+        url = _BASE_URL + url
+
+    brand = raw.get("make") or vehicle.get("make") or ""
+    model = raw.get("model") or vehicle.get("model") or ""
+
+    # Year — try several sources, including the iconified vehicleDetails list
+    year_raw = raw.get("firstRegistrationDate") or raw.get("year") or vehicle.get("firstRegistrationDate")
+    if not year_raw:
+        for det in raw.get("vehicleDetails") or []:
+            if isinstance(det, dict) and det.get("ariaLabel") == "First registration":
+                year_raw = det.get("data")
+                break
     year = _parse_year(year_raw)
     if year < 1980:
         year = 1980
     if year > 2030:
         year = 2030
 
-    mileage_km = raw.get("mileage") or raw.get("mileage_km") or 0
-    price_eur = raw.get("price") or raw.get("price_eur") or 0
+    # Mileage — flat int or "29,000 km" string under vehicle / vehicleDetails
+    mileage_raw = raw.get("mileage") or raw.get("mileage_km") or vehicle.get("mileageInKm")
+    if not mileage_raw:
+        for det in raw.get("vehicleDetails") or []:
+            if isinstance(det, dict) and det.get("ariaLabel") == "Mileage":
+                mileage_raw = det.get("data")
+                break
+    mileage_km = _parse_int(mileage_raw, 0)
 
-    # Normalise to int — prices can arrive as strings in some schema variants
-    try:
-        mileage_km = int(mileage_km)
-    except (TypeError, ValueError):
-        mileage_km = 0
-    try:
-        price_eur = int(price_eur)
-    except (TypeError, ValueError):
-        price_eur = 0
+    # Price — flat int or {"priceFormatted": "€ 16,950"}
+    price_raw = raw.get("price") if not isinstance(raw.get("price"), dict) else None
+    if price_raw is None:
+        price_raw = raw.get("price_eur")
+    if price_raw is None and isinstance(raw.get("price"), dict):
+        price_raw = raw["price"].get("priceFormatted") or raw["price"].get("amount")
+    price_eur = _parse_int(price_raw, 0)
 
-    location = raw.get("location")
+    # Location / country — flat string OR {"city": ..., "countryCode": ...}
+    loc = raw.get("location")
     country = raw.get("country")
+    if isinstance(loc, dict):
+        country = country or loc.get("countryCode")
+        city = loc.get("city")
+        zip_code = loc.get("zip")
+        location = ", ".join(p for p in [zip_code, city] if p) or None
+    else:
+        location = loc
 
     now = datetime.now(tz=UTC)
 
@@ -132,8 +197,8 @@ def _listing_from_dict(raw: dict[str, Any]) -> Listing | None:
             last_seen=now,
             raw=raw,
         )
-    except Exception:
-        logger.debug("Failed to construct Listing from dict: id=%s", listing_id)
+    except Exception as exc:
+        logger.debug("Failed to construct Listing from dict: id=%s err=%s", listing_id, exc)
         return None
 
 

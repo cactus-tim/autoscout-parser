@@ -94,7 +94,7 @@ def build_search_url(criteria: dict, page: int = 1) -> str:
 
     path = _SEARCH_PATH.format(make=make, model=model)
 
-    params: dict[str, str | int] = {}
+    params: dict[str, str | int | list[str]] = {}
 
     # Fixed defaults
     params["atype"] = criteria.get("atype", "C")
@@ -102,9 +102,14 @@ def build_search_url(criteria: dict, page: int = 1) -> str:
     params["desc"] = criteria.get("desc", 0)
     params["ustate"] = criteria.get("ustate", "N,U")
 
-    # Country
+    # Country: AutoScout24 expects a repeated `cy` query param (cy=D&cy=A&cy=CH)
+    # rather than a single comma-separated value. Accept either input form.
     if "cy" in criteria:
-        params["cy"] = criteria["cy"]
+        cy = criteria["cy"]
+        if isinstance(cy, str) and "," in cy:
+            params["cy"] = [c.strip() for c in cy.split(",") if c.strip()]
+        else:
+            params["cy"] = cy
 
     # Price filter
     if "priceto" in criteria:
@@ -127,7 +132,7 @@ def build_search_url(criteria: dict, page: int = 1) -> str:
     # Pagination — always last for readability
     params["page"] = page
 
-    query = urlencode(params)
+    query = urlencode(params, doseq=True)
     return urljoin(_BASE_URL, path) + "?" + query
 
 

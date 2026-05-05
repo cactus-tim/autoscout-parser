@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [project.scripts]
-autoscout-pipeline = "autoscout_pipeline.pipeline:cli"
+autoscout-pipeline = "autoscout_pipeline.pipeline:app"
 
 [build-system]
 requires = ["uv_build>=0.11.7,<0.12.0"]

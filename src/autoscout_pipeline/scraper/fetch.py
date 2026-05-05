@@ -53,7 +53,9 @@ async def fetch_page_html(url: str) -> str:
         page = await browser.new_page()
         try:
             await page.goto(url, wait_until="networkidle", timeout=45000)
-            await page.wait_for_selector("script#__NEXT_DATA__", timeout=15000)
+            await page.wait_for_selector(
+                "script#__NEXT_DATA__", state="attached", timeout=15000
+            )
             html: str = await page.content()
         finally:
             await page.close()

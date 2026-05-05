@@ -34,13 +34,30 @@ SEARCH_CRITERIA: dict = {
     "make": "mini",
     "model": "mini",
     "kmfrom": 20_000,
-    "kmto": 30_000,
-    "priceto": 23_000,
+    "kmto": 50_000,
+    "priceto": 24_000,
+    "fregfrom": 2021,
+    "fregto": 2023,
     "cy": "D,A,CH",
     "atype": "C",
     "ustate": "N,U",
     "sort": "standard",
 }
+
+# Post-fetch trim filters on listing.model (case-insensitive substring match).
+# AutoScout24 returns all MINI variants under model=mini in the URL, so the
+# actual trim ("Cooper", "Cooper S", "Cooper D Clubman", "Countryman") lives
+# only in the JSON. Keep anything that says "cooper", drop anything that
+# also says one of the non-Hatch body types.
+MODEL_NAME_CONTAINS: str | None = "cooper"
+MODEL_NAME_EXCLUDES: tuple[str, ...] = (
+    "clubman",
+    "countryman",
+    "cabrio",
+    "convertible",
+    "roadster",
+    "coupe",
+)
 
 
 async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
@@ -105,6 +122,30 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
             err_count += 1
 
         logger.info("Scraped %d listings total", len(all_listings))
+
+        # --- 3a. Post-fetch trim filters ---
+        if MODEL_NAME_CONTAINS:
+            needle = MODEL_NAME_CONTAINS.lower()
+            before = len(all_listings)
+            all_listings = [lst for lst in all_listings if needle in lst.model.lower()]
+            logger.info(
+                "Trim filter include=%r: %d → %d listings",
+                MODEL_NAME_CONTAINS,
+                before,
+                len(all_listings),
+            )
+        if MODEL_NAME_EXCLUDES:
+            excludes = tuple(e.lower() for e in MODEL_NAME_EXCLUDES)
+            before = len(all_listings)
+            all_listings = [
+                lst for lst in all_listings if not any(e in lst.model.lower() for e in excludes)
+            ]
+            logger.info(
+                "Trim filter exclude=%r: %d → %d listings",
+                MODEL_NAME_EXCLUDES,
+                before,
+                len(all_listings),
+            )
 
         # --- 4. Dedup ---
         if dry_run:

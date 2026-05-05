@@ -21,6 +21,7 @@ from gspread_formatting import (
     Color,
     ConditionalFormatRule,
     ConditionalFormatRules,
+    GridRange,
     get_conditional_format_rules,
 )
 
@@ -47,6 +48,8 @@ def apply_score_conditional_formatting(worksheet: Worksheet) -> None:
     rules: ConditionalFormatRules = get_conditional_format_rules(worksheet)
     rules.clear()
 
+    score_range = GridRange.from_a1_range(_SCORE_RANGE, worksheet)
+
     green = CellFormat(backgroundColor=_color(0.7, 1.0, 0.7))
     yellow = CellFormat(backgroundColor=_color(1.0, 1.0, 0.7))
     light_red = CellFormat(backgroundColor=_color(1.0, 0.7, 0.7))
@@ -54,7 +57,7 @@ def apply_score_conditional_formatting(worksheet: Worksheet) -> None:
     new_rules = [
         # Rule 1: score >= 8 → green
         ConditionalFormatRule(
-            ranges=[_SCORE_RANGE],
+            ranges=[score_range],
             booleanRule=BooleanRule(
                 condition=BooleanCondition("NUMBER_GREATER_THAN_EQ", ["8"]),
                 format=green,
@@ -62,7 +65,7 @@ def apply_score_conditional_formatting(worksheet: Worksheet) -> None:
         ),
         # Rule 2: score >= 6 → yellow
         ConditionalFormatRule(
-            ranges=[_SCORE_RANGE],
+            ranges=[score_range],
             booleanRule=BooleanRule(
                 condition=BooleanCondition("NUMBER_GREATER_THAN_EQ", ["6"]),
                 format=yellow,
@@ -70,7 +73,7 @@ def apply_score_conditional_formatting(worksheet: Worksheet) -> None:
         ),
         # Rule 3: score >= 4 → no format (neutral; explicit rule keeps priority ordering)
         ConditionalFormatRule(
-            ranges=[_SCORE_RANGE],
+            ranges=[score_range],
             booleanRule=BooleanRule(
                 condition=BooleanCondition("NUMBER_GREATER_THAN_EQ", ["4"]),
                 format=CellFormat(),  # empty = transparent / default
@@ -78,9 +81,9 @@ def apply_score_conditional_formatting(worksheet: Worksheet) -> None:
         ),
         # Rule 4: score < 4 → light red
         ConditionalFormatRule(
-            ranges=[_SCORE_RANGE],
+            ranges=[score_range],
             booleanRule=BooleanRule(
-                condition=BooleanCondition("NUMBER_LESS_THAN", ["4"]),
+                condition=BooleanCondition("NUMBER_LESS", ["4"]),
                 format=light_red,
             ),
         ),

@@ -22,7 +22,11 @@ from gspread_formatting import (
     ConditionalFormatRule,
     ConditionalFormatRules,
     GridRange,
+    TextFormat,
+    format_cell_range,
     get_conditional_format_rules,
+    set_column_width,
+    set_frozen,
 )
 
 from autoscout_pipeline.sheets.schema import SCORE_COLUMN_LETTER
@@ -91,3 +95,58 @@ def apply_score_conditional_formatting(worksheet: Worksheet) -> None:
 
     rules.extend(new_rules)
     rules.save()
+
+
+# ---------------------------------------------------------------------------
+# Layout / readability formatting for the listings tab
+# ---------------------------------------------------------------------------
+#
+# Pixel widths chosen to fit the schema in src/autoscout_pipeline/sheets/schema.py.
+# The "wide text" columns (reasoning M, pros N, cons O) get the bulk of the
+# horizontal space and have wrap=WRAP + vertical=TOP so multi-line Russian text
+# stays readable without manual resizing.
+
+_COLUMN_WIDTHS_PX: dict[str, int] = {
+    "A": 110,  # listing_id (truncated UUID prefix is enough at a glance)
+    "B": 240,  # url
+    "C": 90,   # first_seen
+    "D": 90,   # last_seen
+    "E": 60,   # brand
+    "F": 110,  # model
+    "G": 60,   # year
+    "H": 90,   # mileage_km
+    "I": 90,   # price_eur
+    "J": 130,  # location
+    "K": 70,   # country
+    "L": 60,   # score
+    "M": 480,  # reasoning  (wide)
+    "N": 320,  # pros       (wide)
+    "O": 280,  # cons       (wide)
+    "P": 80,   # status
+}
+
+def apply_listings_layout(worksheet: Worksheet) -> None:
+    """Apply column widths, header bold, frozen header row, and text-wrap on
+    the wide text columns of the listings tab.
+
+    Idempotent — Sheets-side property writes overwrite previous values.
+    """
+    # Header: bold + freeze first row.
+    bold_header = CellFormat(
+        textFormat=TextFormat(bold=True),
+        verticalAlignment="MIDDLE",
+        wrapStrategy="CLIP",
+    )
+    format_cell_range(worksheet, "A1:P1", bold_header)
+    set_frozen(worksheet, rows=1)
+
+    # Column widths.
+    for letter, width in _COLUMN_WIDTHS_PX.items():
+        set_column_width(worksheet, letter, width)
+
+    # Wrap + top-align the wide text columns so long Russian reasoning is readable.
+    wrap_top = CellFormat(wrapStrategy="WRAP", verticalAlignment="TOP")
+    format_cell_range(worksheet, "M2:O10000", wrap_top)
+
+    # The url column also benefits from CLIP (don't wrap, just hide overflow).
+    format_cell_range(worksheet, "B2:B10000", CellFormat(wrapStrategy="CLIP"))

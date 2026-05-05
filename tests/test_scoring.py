@@ -147,7 +147,12 @@ async def test_score_returns_listing_score():
 
 
 async def test_score_returns_sentinel_on_api_error():
-    """On any API error, score() returns ListingScore(score=1, reasoning starts with 'LLM scoring failed:')."""
+    """On any API error, score() returns ListingScore(score=1) with a short reasoning.
+
+    Reasoning must NOT contain the raw exception message (which can be a multi-kilobyte
+    instructor failed_attempts dump) — only the exception type name, so the Sheets
+    cell stays readable.
+    """
     listing = _make_listing()
 
     scorer = LLMScorer(api_key="x")
@@ -157,8 +162,9 @@ async def test_score_returns_sentinel_on_api_error():
     result = await scorer.score(listing)
     assert isinstance(result, ListingScore)
     assert result.score == 1
-    assert result.reasoning.startswith("LLM scoring failed:")
-    assert "openai timeout" in result.reasoning
+    assert result.reasoning.startswith("LLM scoring failed")
+    assert "Exception" in result.reasoning
+    assert "openai timeout" not in result.reasoning  # full message stays in logs only
     assert result.pros == []
     assert result.cons == []
 

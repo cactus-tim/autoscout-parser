@@ -1,0 +1,38 @@
+# Build context exclusions — keep the image lean and avoid leaking secrets.
+.git/
+.gitignore
+.github/
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.coverage
+.coverage.*
+htmlcov/
+node_modules/
+
+# Local secrets — must NEVER be in the image (they come in via volume / env_file)
+.env
+.env.*
+!.env.example
+creds.json
+
+# Dev artefacts
+dev/
+tests/
+tests_integration/
+scripts/recon_detail.py
+
+# OS / editor cruft
+.DS_Store
+*.swp
+.idea/
+.vscode/
+.claude/
+
+# Old systemd-based deployment (kept in repo for reference, not needed in image)
+deploy/

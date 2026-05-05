@@ -21,6 +21,7 @@ dependencies = [
     "orjson",
     "selectolax",
     "python-dotenv",
+    "apscheduler>=3.10,<4",
 ]
 
 [project.scripts]

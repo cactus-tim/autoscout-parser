@@ -38,9 +38,8 @@ SEARCH_CRITERIA: dict = {
     "kmfrom": 20_000,
     "kmto": 50_000,
     "priceto": 24_000,
-    "fregfrom": 2021,
+    "fregfrom": 2022,
     "fregto": 2023,
-    "cy": "D,A,CH",
     "atype": "C",
     "ustate": "N,U",
     "sort": "standard",
@@ -55,11 +54,33 @@ MODEL_NAME_CONTAINS: str | None = "cooper"
 MODEL_NAME_EXCLUDES: tuple[str, ...] = (
     "clubman",
     "countryman",
-    "cabrio",
-    "convertible",
     "roadster",
     "coupe",
 )
+
+# ---------------------------------------------------------------------------
+# Pre-LLM body-variant filter (reject 5-door only; everything else is allowed
+# through to the LLM for normal scoring, including Convertible/Cabriolet).
+# ---------------------------------------------------------------------------
+#
+# AS24 puts the body shape in ``vehicle.variant`` (e.g. "3 Door", "5 Door",
+# "Convertible"). The trim-name filters above only look at ``model``, so
+# body shapes leak through unless we check the raw field explicitly here.
+# We only block 5-door (a hard dealbreaker per the brief); everything else
+# (3-door, Convertible, Coupe, Hatch, …) is left for the LLM to score.
+
+FIVE_DOOR_TOKENS = ("5 door", "5-door", "5-türer", "5 türer", "5door")
+
+
+def _is_not_5door(listing: Listing) -> bool:
+    """Return True unless ``vehicle.variant`` literally says 5-door."""
+    raw = listing.raw or {}
+    vehicle = raw.get("vehicle") if isinstance(raw.get("vehicle"), dict) else {}
+    variant = (vehicle.get("variant") or "").strip().lower()
+    if not variant:
+        return True  # unknown → keep defensively
+    return not any(tok in variant for tok in FIVE_DOOR_TOKENS)
+
 
 # ---------------------------------------------------------------------------
 # Pre-LLM transmission filter
@@ -207,6 +228,10 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
             )
 
         before = len(all_listings)
+        all_listings = [lst for lst in all_listings if _is_not_5door(lst)]
+        logger.info("Trim filter not-5door: %d → %d listings", before, len(all_listings))
+
+        before = len(all_listings)
         all_listings = [lst for lst in all_listings if _is_base_cooper(lst)]
         logger.info("Trim filter base-cooper-only: %d → %d listings", before, len(all_listings))
 
@@ -253,6 +278,14 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
                 s.listing.price_eur,
                 s.score.score,
             )
+
+        # Drop score=1 (hard-dealbreaker / scoring-failure sentinels) — these
+        # carry no shopping value and only clutter the sheet.
+        before_drop = len(scored)
+        scored = [s for s in scored if s.score.score > 1]
+        dropped_low = before_drop - len(scored)
+        if dropped_low:
+            logger.info("Dropped %d listings with score=1 (not written to sheet)", dropped_low)
 
         # --- 6. Upsert to Sheets ---
         today = dt.date.today().isoformat()
@@ -308,6 +341,70 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
 
 
 # ---------------------------------------------------------------------------
+# In-process scheduler (Python-native, no systemd/cron needed)
+# ---------------------------------------------------------------------------
+
+
+async def run_scheduler(settings: Settings) -> None:
+    """Run the pipeline forever on the configured cron schedule.
+
+    Uses APScheduler's ``AsyncIOScheduler`` so the scheduler shares the main
+    event loop with the pipeline coroutines (no thread juggling).
+
+    The cron expression comes from ``settings.schedule_cron`` and is interpreted
+    in UTC. ``coalesce=True`` + ``max_instances=1`` ensure that if a run
+    overruns past the next tick, only one fires (no overlap, no backlog flood).
+
+    Optional kickstart: when ``settings.run_on_startup=True`` the scheduler
+    runs the pipeline once immediately before sleeping until the cron fires.
+    """
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.triggers.cron import CronTrigger
+
+    configure_logging()
+    logger.info(
+        "Scheduler starting; cron=%r (UTC), run_on_startup=%s",
+        settings.schedule_cron,
+        settings.run_on_startup,
+    )
+
+    async def _job() -> None:
+        try:
+            await run(settings, dry_run=False)
+        except Exception:
+            logger.exception("Scheduled run raised; will retry at next cron tick")
+
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    trigger = CronTrigger.from_crontab(settings.schedule_cron, timezone="UTC")
+    scheduler.add_job(
+        _job,
+        trigger,
+        id="autoscout_pipeline",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.start()
+
+    if settings.run_on_startup:
+        logger.info("run_on_startup=True — kicking off initial run before cron")
+        await _job()
+
+    # Block forever; SIGINT / SIGTERM (compose stop) cancels the await and the
+    # finally clause shuts the scheduler down cleanly.
+    stop = asyncio.Event()
+    try:
+        loop = asyncio.get_running_loop()
+        import signal
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, stop.set)
+        await stop.wait()
+    finally:
+        logger.info("Scheduler shutting down")
+        scheduler.shutdown(wait=False)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -317,20 +414,33 @@ app = typer.Typer(add_completion=False)
 @app.command()
 def cli(
     dry_run: bool = typer.Option(False, "--dry-run", help="Skip all writes and notifications."),
+    schedule: bool = typer.Option(
+        False,
+        "--schedule",
+        help=(
+            "Run forever in scheduler mode (Python-native APScheduler). "
+            "Cron expression comes from SCHEDULE_CRON in .env (default 03:15 UTC daily). "
+            "This is the entrypoint used by the Docker image."
+        ),
+    ),
 ) -> None:
     """AutoScout24 MINI pipeline — scrape, score, persist, notify."""
-    main(dry_run=dry_run)
+    main(dry_run=dry_run, schedule=schedule)
 
 
-def main(dry_run: bool = False) -> None:
-    """Imperative shell: load settings and drive asyncio.run(run(...)).
+def main(dry_run: bool = False, schedule: bool = False) -> None:
+    """Imperative shell: load settings and drive asyncio.run(run(...) | scheduler).
 
     Used by the ``autoscout-pipeline`` console_script defined in pyproject.toml.
-    Exits with code 1 on any unhandled exception so systemd can detect failure.
+    Exits with code 1 on any unhandled exception so the container restart
+    policy / systemd can detect failure.
     """
     try:
         settings = Settings()  # type: ignore[call-arg]
-        asyncio.run(run(settings, dry_run=dry_run))
+        if schedule:
+            asyncio.run(run_scheduler(settings))
+        else:
+            asyncio.run(run(settings, dry_run=dry_run))
     except Exception as exc:
         logging.getLogger(__name__).exception("Fatal pipeline error: %s", exc)
         sys.exit(1)

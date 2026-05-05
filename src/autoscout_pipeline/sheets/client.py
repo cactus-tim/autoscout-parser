@@ -17,7 +17,10 @@ from pathlib import Path
 import gspread
 
 from autoscout_pipeline.models import PriceChange, RunRecord, ScoredListing
-from autoscout_pipeline.sheets.formatting import apply_score_conditional_formatting
+from autoscout_pipeline.sheets.formatting import (
+    apply_listings_layout,
+    apply_score_conditional_formatting,
+)
 from autoscout_pipeline.sheets.schema import (
     LISTINGS_HEADERS,
     LISTINGS_TAB,
@@ -110,6 +113,8 @@ class SheetsClient:
         # Apply conditional formatting to the score column (idempotent — clears + reapplies)
         listings_ws = self._spreadsheet.worksheet(LISTINGS_TAB)
         apply_score_conditional_formatting(listings_ws)
+        # Column widths, header bold, frozen header row, text-wrap on M/N/O.
+        apply_listings_layout(listings_ws)
 
     def get_existing_ids(self) -> dict[str, dict]:
         """Return a mapping of listing_id → row metadata for the listings tab.

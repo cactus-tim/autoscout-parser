@@ -44,3 +44,14 @@ class Settings(BaseSettings):
     creds_path: str = Field(
         "creds.json", description="Path to Google service-account credentials JSON"
     )
+
+    # Scheduler (Python-native, in-process). Used when the CLI is invoked with
+    # ``--schedule``. Cron expression evaluated in UTC; same syntax as crontab.
+    schedule_cron: str = Field(
+        "15 3 * * *",
+        description="Crontab expression for scheduled runs (UTC). Default: 03:15 UTC daily",
+    )
+    run_on_startup: bool = Field(
+        False,
+        description="When --schedule is active, fire one immediate run on startup before the cron kicks in.",
+    )

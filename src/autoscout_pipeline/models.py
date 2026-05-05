@@ -56,8 +56,8 @@ class ListingScore(BaseModel):
 
     score: int = Field(..., ge=1, le=10)
     reasoning: str = Field(..., min_length=1)
-    pros: list[str]
-    cons: list[str]
+    pros: list[str] = Field(default_factory=list)
+    cons: list[str] = Field(default_factory=list)
 
 
 class ScoredListing(BaseModel):

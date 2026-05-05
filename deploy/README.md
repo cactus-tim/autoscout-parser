@@ -1,185 +1,123 @@
-# Hetzner CAX11 Deployment Guide
+# Deployment
 
-This guide walks through a fresh deployment of the AutoScout24 MINI pipeline on a
-Hetzner Cloud CAX11 server (Ubuntu 24.04, ARM64). All steps are idempotent; you
-can re-run `install.sh` after updates.
+Docker-based deploy. The container runs forever in scheduler mode, firing the
+pipeline on the cron expression in `SCHEDULE_CRON` (default 03:15 UTC daily).
+No host systemd, no host cron — everything lives inside the container.
+
+> **Legacy systemd unit files** are preserved under `deploy/legacy-systemd/`
+> for reference only — not used by the Docker flow.
+
+---
 
 ## Prerequisites
 
-- **Server**: Hetzner CAX11 (or any EU ARM64 VPS) with Ubuntu 24.04 LTS
-- **Access**: SSH access with a user that has `sudo` privileges
-- **Credentials ready**:
-  - `OPENAI_API_KEY` (paid tier ≥500 RPM recommended — see Troubleshooting)
-  - `TG_TOKEN` and `TG_CHAT_ID` (from BotFather — see root README)
-  - `SHEET_ID` (Google Sheet URL fragment)
-  - `creds.json` (GCP service account — see root README)
+- A Linux host with **Docker Engine ≥ 24** and **Docker Compose plugin v2**.
+- Outbound internet access (Camoufox boots a real Firefox, hits AS24 + OpenAI + Telegram + Sheets API).
+- ~2 GB of disk for the built image (Firefox binary takes most of it).
+- ~600 MB RAM for the running container at idle; spikes during scrape.
+
+OS does not matter — Ubuntu 22.04 / 24.04, Debian, Alpine on the host all work.
+The image itself is `python:3.11-slim-bookworm`.
 
 ---
 
-## Step 1 — Provision the VPS
-
-1. Log in to [Hetzner Cloud Console](https://console.hetzner.cloud/).
-2. Click **+ New Server**.
-3. Choose:
-   - **Location**: any EU region (DE recommended for MINI listings)
-   - **Image**: Ubuntu 24.04
-   - **Type**: CAX11 (2 vCPU ARM64, 4 GB RAM)
-   - **SSH key**: add your public key
-4. Click **Create & Buy Now**.
-5. Note the server's public IP address.
-
----
-
-## Step 2 — SSH in and clone the repo
+## First-time setup on a new server
 
 ```bash
-ssh root@<SERVER_IP>
-
-# Clone the repository as root (or your sudo user) to /opt/autoscout
-git clone https://github.com/<your-org>/autoscout-parser.git /opt/autoscout
-
-# Hand ownership to your current user so you can edit config files;
-# install.sh will later create the dedicated 'autoscout' system user
-# and chown only the runtime artefacts it writes.
-chown -R $USER:$USER /opt/autoscout
-```
-
----
-
-## Step 3 — Configure environment variables
-
-```bash
+git clone <repo-url> /opt/autoscout
 cd /opt/autoscout
+
+# 1. Configure secrets
 cp .env.example .env
-nano .env   # or vim, or any editor
+$EDITOR .env
+
+# 2. Drop in the GCP service-account JSON
+cp /path/to/creds.json .
+chmod 600 creds.json .env
+
+# 3. Build + start (detached)
+docker compose up -d --build
+
+# 4. Verify it's running and the cron is registered
+docker compose logs -f
 ```
 
-Fill in every required variable:
+You should see:
 
-| Variable         | Description                                        |
-|------------------|----------------------------------------------------|
-| `OPENAI_API_KEY` | OpenAI API key (paid tier ≥500 RPM for production) |
-| `TG_TOKEN`       | Telegram bot token from @BotFather                 |
-| `TG_CHAT_ID`     | Your Telegram chat/channel ID from @userinfobot    |
-| `SHEET_ID`       | The long ID from your Google Sheet URL             |
-| `CREDS_PATH`     | Path to `creds.json` (default: `/opt/autoscout/creds.json`) |
-
----
-
-## Step 4 — Copy the GCP service-account credentials
-
-Transfer `creds.json` from your local machine to the server:
-
-```bash
-# Run this on your LOCAL machine
-scp creds.json root@<SERVER_IP>:/opt/autoscout/creds.json
 ```
-
-The file must be valid JSON (not the example file). See `docs/creds.json.example`
-for the expected structure. Protect it:
-
-```bash
-chmod 600 /opt/autoscout/creds.json
+{"ts":"...","level":"INFO","logger":"autoscout_pipeline.pipeline","msg":"Scheduler starting; cron='15 3 * * *' (UTC), run_on_startup=False"}
 ```
 
 ---
 
-## Step 5 — Run the installer
+## Configuration
 
-```bash
-cd /opt/autoscout
-bash deploy/install.sh
-```
+All knobs live in `.env`. Key vars:
 
-The script will:
-1. Install system dependencies (ARM64 t64 variants for Ubuntu 24.04).
-2. Install `uv` if missing.
-3. Create the `autoscout` system user at `/opt/autoscout` if missing.
-4. Run `uv sync --frozen` to install Python dependencies.
-5. Download the camoufox Firefox binary (`python -m camoufox fetch`).
-6. Install and enable the systemd service and timer.
+| Variable                  | Default            | Meaning |
+|---------------------------|--------------------|---------|
+| `OPENAI_API_KEY`          | —                  | Required. |
+| `OPENAI_MODEL`            | `gpt-4.1-nano`     | We currently use `gpt-4.1-mini`. |
+| `TG_TOKEN` / `TG_CHAT_ID` | —                  | Set both to enable Telegram. Group IDs start with `-`. |
+| `SHEET_ID`                | —                  | Required. Google Sheets ID from URL. |
+| `SCORE_NOTIFY_THRESHOLD`  | `8`                | Telegram threshold. We use `7`. |
+| `AS24_THROTTLE_MIN/MAX`   | `2.0` / `6.0`      | Per-page throttle in seconds. |
+| `AS24_ENRICH`             | `true`             | Detail-page enrichment toggle. |
+| `SCHEDULE_CRON`           | `15 3 * * *` (UTC) | Cron expression for periodic runs. |
+| `RUN_ON_STARTUP`          | `false`            | If true, fires one run immediately on container start (handy for smoke-testing on a new server). |
 
-Re-running is safe; every step checks whether it is already done.
-
----
-
-## Step 6 — Dry-run smoke check
-
-Verify the pipeline wires up without writing anything:
-
-```bash
-sudo -u autoscout /opt/autoscout/.venv/bin/autoscout-pipeline --dry-run
-```
-
-Expected output: a JSON-structured log showing listing counts, scores, and
-`dry_run=true` annotations with no Sheets writes or Telegram messages.
+`CREDS_PATH` and `BRIEF_PATH` are overridden by `docker-compose.yml` to
+`/app/creds.json` and `/app/brief.md` — no need to set them in `.env` for the
+container, but they still work for direct `uv run` on the host.
 
 ---
 
-## Step 7 — Verify the timer
+## Operational commands
 
 ```bash
-systemctl list-timers autoscout-pipeline.timer
-```
+# Tail logs
+docker compose logs -f
 
-The timer fires daily at **03:15 UTC** with a randomised jitter of up to 600 s
-(10 minutes). The `Persistent=true` flag ensures a missed run (e.g. server was
-off) fires immediately on next boot.
+# Run a one-shot dry-run (no Sheets writes, no Telegram) — bypasses scheduler
+docker compose run --rm autoscout autoscout-pipeline --dry-run
 
----
+# Trigger a real run NOW, ignoring schedule
+docker compose run --rm autoscout autoscout-pipeline
 
-## Logs
+# Stop the scheduler
+docker compose down
 
-Stream live output from the most recent or running job:
-
-```bash
-journalctl -u autoscout-pipeline.service -f
-```
-
-View the last 200 lines:
-
-```bash
-journalctl -u autoscout-pipeline.service -n 200 --no-pager
+# Rebuild after code changes
+git pull && docker compose up -d --build
 ```
 
 ---
 
-## Manual run
+## Updating the brief without rebuilding
 
-Trigger a full run immediately (bypasses the timer schedule):
-
-```bash
-sudo systemctl start autoscout-pipeline.service
-```
-
-Check the exit status:
-
-```bash
-systemctl status autoscout-pipeline.service
-```
+`brief.md` is mounted read-only from the host into the container. Edit it on
+the host and the next scheduled run picks it up — `prompt.load_brief()` re-reads
+the file each run thanks to its lru_cache being scoped to one process and the
+compose container restarting only on crash. (For an immediate effect, `docker
+compose restart autoscout`.)
 
 ---
 
-## Updating the pipeline
+## Troubleshooting
 
-```bash
-cd /opt/autoscout
-git pull
-bash deploy/install.sh   # re-syncs deps and reloads systemd
-```
+**Camoufox download fails during build.** Some networks block GitHub Releases /
+Moose CDN. Build the image on a host with clean outbound HTTPS, or pre-pull
+the binary and `COPY` it in.
 
----
+**`chat not found` from Telegram.** The bot must be added to the group with
+permission to send messages. For private DMs, the user has to send `/start`
+to the bot at least once before the first message.
 
-## File layout on the server
+**Sheets `403`.** Share the spreadsheet with the service-account email
+(`client_email` field of `creds.json`) as Editor.
 
-```
-/opt/autoscout/
-  .env                  # secrets — chmod 600
-  creds.json            # GCP service account — chmod 600
-  brief.md              # scoring brief — edit to tune ranking
-  .venv/                # uv-managed virtual environment
-  deploy/               # systemd units + this README
-/etc/systemd/system/
-  autoscout-pipeline.service
-  autoscout-pipeline.timer
-```
+**Scheduled run is skipped.** Check timezone — cron is UTC, not local. To run
+at 06:15 Berlin (UTC+1 in winter / UTC+2 in summer), use `15 5 * * *` or
+`15 4 * * *` accordingly, or set `TZ=Europe/Berlin` in compose if you want
+local interpretation (APScheduler honours the trigger's `timezone` arg, which
+we hard-code to UTC; change in `pipeline.py:run_scheduler` if you want host TZ).

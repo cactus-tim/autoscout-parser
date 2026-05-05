@@ -1,0 +1,30 @@
+# docker-compose.yml — single-service deployment of the AutoScout24 pipeline.
+#
+# Usage on a fresh server:
+#   1. cp .env.example .env       # then fill in real secrets
+#   2. cp /path/to/creds.json .   # GCP service-account JSON (chmod 600)
+#   3. docker compose up -d --build
+#   4. docker compose logs -f
+#
+# The container runs forever (scheduler mode) and fires the pipeline on the
+# cron expression in SCHEDULE_CRON (default 03:15 UTC daily). On crash the
+# `restart: unless-stopped` policy brings it back automatically.
+
+services:
+  autoscout:
+    build: .
+    container_name: autoscout-pipeline
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override host paths from .env so they point inside the container.
+      - CREDS_PATH=/app/creds.json
+      - BRIEF_PATH=/app/brief.md
+      - TZ=UTC
+    volumes:
+      # Read-only mounts; container should never write to these.
+      - ./creds.json:/app/creds.json:ro
+      - ./brief.md:/app/brief.md:ro
+    # Healthcheck disabled by default — the pipeline is event-driven, not a server.
+    # Add monitoring at the host level (e.g. `docker compose logs --since 24h`).

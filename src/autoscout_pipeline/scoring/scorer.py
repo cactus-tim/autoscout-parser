@@ -57,7 +57,7 @@ class LLMScorer:
             logger.warning("scoring failed for %s: %s", listing.listing_id, e)
             return ListingScore(
                 score=1,
-                reasoning=f"LLM scoring failed: {e}",
+                reasoning=f"LLM scoring failed ({type(e).__name__})",
                 pros=[],
                 cons=[],
             )

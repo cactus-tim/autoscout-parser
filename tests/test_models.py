@@ -417,15 +417,11 @@ class TestListingEnrichmentFields:
         assert listing.upholstery is None
 
     def test_equipment_can_be_populated(self):
-        listing = Listing.model_validate(
-            make_listing(equipment=["Klimaanlage", "SHZ", "Navi"])
-        )
+        listing = Listing.model_validate(make_listing(equipment=["Klimaanlage", "SHZ", "Navi"]))
         assert listing.equipment == ["Klimaanlage", "SHZ", "Navi"]
 
     def test_equipment_populated_is_list_of_str(self):
-        listing = Listing.model_validate(
-            make_listing(equipment=["DAB", "PDC"])
-        )
+        listing = Listing.model_validate(make_listing(equipment=["DAB", "PDC"]))
         assert isinstance(listing.equipment, list)
         assert all(isinstance(item, str) for item in listing.equipment)
 
@@ -458,9 +454,7 @@ class TestListingEnrichmentFields:
         assert listing.upholstery is None
 
     def test_model_dump_round_trip_preserves_equipment(self):
-        original = Listing.model_validate(
-            make_listing(equipment=["Klimaanlage", "SHZ"])
-        )
+        original = Listing.model_validate(make_listing(equipment=["Klimaanlage", "SHZ"]))
         dumped = original.model_dump()
         restored = Listing.model_validate(dumped)
         assert restored.equipment == ["Klimaanlage", "SHZ"]

@@ -42,6 +42,20 @@ All settings are read from environment variables (loaded from `.env` via
 | `OPENAI_MODEL`          | no       | `gpt-4.1-nano`        | OpenAI model used for scoring.                                                     |
 | `AS24_THROTTLE_MIN`     | no       | `2.0`                 | Minimum seconds to wait between scraper page requests.                             |
 | `AS24_THROTTLE_MAX`     | no       | `6.0`                 | Maximum seconds to wait between scraper page requests.                             |
+| `AS24_ENRICH`           | no       | `true`                | Fetch each new listing's detail page to extract equipment, colours, and upholstery before scoring. Set to `false` to skip enrichment and reduce run time. |
+
+---
+
+## Detail-Page Enrichment
+
+After scraping and deduplication, the pipeline optionally fetches each new
+listing's detail page using the same browser session to extract structured
+fields: equipment list, exterior colour, upholstery type, and interior colour.
+This enrichment phase adds approximately 3–6 seconds per new listing (governed
+by the existing `AS24_THROTTLE_MIN`/`AS24_THROTTLE_MAX` window) and can be
+disabled by setting `AS24_ENRICH=false`. The LLM scorer receives these fields
+as first-class lines (`equipment_list`, `exterior_color`, `interior_color`,
+`upholstery`) rather than inferring them from abbreviated German model strings.
 
 ---
 

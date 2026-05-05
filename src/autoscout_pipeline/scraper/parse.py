@@ -140,7 +140,9 @@ def _listing_from_dict(raw: dict[str, Any]) -> Listing | None:
     model = raw.get("model") or vehicle.get("model") or ""
 
     # Year — try several sources, including the iconified vehicleDetails list
-    year_raw = raw.get("firstRegistrationDate") or raw.get("year") or vehicle.get("firstRegistrationDate")
+    year_raw = (
+        raw.get("firstRegistrationDate") or raw.get("year") or vehicle.get("firstRegistrationDate")
+    )
     if not year_raw:
         for det in raw.get("vehicleDetails") or []:
             if isinstance(det, dict) and det.get("ariaLabel") == "First registration":
@@ -340,7 +342,9 @@ def _flatten_equipment(raw: Any) -> list[str]:
         logger.debug("_flatten_equipment: unrecognised list shape, returning empty")
         return []
 
-    logger.debug("_flatten_equipment: unrecognised raw type %s, returning empty", type(raw).__name__)
+    logger.debug(
+        "_flatten_equipment: unrecognised raw type %s, returning empty", type(raw).__name__
+    )
     return []
 
 
@@ -413,10 +417,12 @@ def parse_listing_detail(data: dict[str, Any]) -> Listing:
     upholstery_raw = vehicle.get("upholstery")
     upholstery = str(upholstery_raw) if upholstery_raw is not None else None
 
-    return listing.model_copy(update={
-        "url": url,
-        "equipment": equipment,
-        "exterior_color": exterior_color,
-        "interior_color": interior_color,
-        "upholstery": upholstery,
-    })
+    return listing.model_copy(
+        update={
+            "url": url,
+            "equipment": equipment,
+            "exterior_color": exterior_color,
+            "interior_color": interior_color,
+            "upholstery": upholstery,
+        }
+    )

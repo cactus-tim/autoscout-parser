@@ -177,8 +177,16 @@ class TestFlattenEquipment:
         """Primary shape: dict-of-categories with list-of-dicts-with-id."""
         raw = {
             "comfortAndConvenience": [
-                {"id": "Automatic climate control, 2 zones", "categoryName": "C&C", "categoryId": "comfortAndConvenience"},
-                {"id": "Auxiliary heating", "categoryName": "C&C", "categoryId": "comfortAndConvenience"},
+                {
+                    "id": "Automatic climate control, 2 zones",
+                    "categoryName": "C&C",
+                    "categoryId": "comfortAndConvenience",
+                },
+                {
+                    "id": "Auxiliary heating",
+                    "categoryName": "C&C",
+                    "categoryId": "comfortAndConvenience",
+                },
             ],
             "entertainmentAndMedia": [
                 {"id": "Bluetooth", "categoryName": "E&M", "categoryId": "entertainmentAndMedia"},
@@ -244,10 +252,18 @@ class TestFlattenEquipment:
         """Every returned item must be a non-empty string."""
         raw = {
             "comfortAndConvenience": [
-                {"id": "Air conditioning", "categoryName": "C&C", "categoryId": "comfortAndConvenience"},
+                {
+                    "id": "Air conditioning",
+                    "categoryName": "C&C",
+                    "categoryId": "comfortAndConvenience",
+                },
             ],
             "extras": [
-                {"id": "", "categoryName": "E", "categoryId": "extras"},  # empty id — must be excluded
+                {
+                    "id": "",
+                    "categoryName": "E",
+                    "categoryId": "extras",
+                },  # empty id — must be excluded
             ],
         }
         result = _flatten_equipment(raw)
@@ -357,7 +373,6 @@ class TestParseListingDetail:
     def test_missing_enrichment_fields_do_not_raise(self) -> None:
         """parse_listing_detail must not raise when enrichment fields are absent."""
         # Minimal synthetic dict with no vehicle enrichment fields
-        from datetime import UTC
         data = {
             "props": {
                 "pageProps": {

@@ -29,11 +29,7 @@ import textwrap
 
 FIXTURES_DIR = pathlib.Path(__file__).parent.parent / "tests" / "fixtures"
 RECON_NOTES_PATH = (
-    pathlib.Path(__file__).parent.parent
-    / "dev"
-    / "active"
-    / "detail-page-fetch"
-    / "recon-notes.md"
+    pathlib.Path(__file__).parent.parent / "dev" / "active" / "detail-page-fetch" / "recon-notes.md"
 )
 
 
@@ -45,7 +41,7 @@ def _safe_excerpt(obj: object, max_lines: int = 12) -> str:
         text = repr(obj)
     lines = text.splitlines()
     if len(lines) > max_lines:
-        lines = lines[:max_lines] + [f"  ... ({len(lines) - max_lines} more lines)"]
+        lines = [*lines[:max_lines], f"  ... ({len(lines) - max_lines} more lines)"]
     return "\n".join(lines)
 
 
@@ -109,7 +105,9 @@ async def _recon() -> None:
     # ------------------------------------------------------------------
     print("Fetching first listing from search …")
     first_listing = None
-    async for listing in iter_listings(SEARCH_CRITERIA, max_pages=1, throttle_min=0.0, throttle_max=0.0):
+    async for listing in iter_listings(
+        SEARCH_CRITERIA, max_pages=1, throttle_min=0.0, throttle_max=0.0
+    ):
         first_listing = listing
         break  # we only need the first
 
@@ -256,7 +254,7 @@ async def _recon() -> None:
 
         if val is None:
             notes_lines.append(
-                f"Field not found at primary path or any known alternate path. "
+                "Field not found at primary path or any known alternate path. "
                 "Inspect the raw JSON at the path above."
             )
             open_issues.append(
@@ -272,8 +270,7 @@ async def _recon() -> None:
                 )
             elif fname == "equipment" and shape == "list[dict-with-items]":
                 notes_lines.append(
-                    "List of dicts — inspect `items` key or similar for "
-                    "the actual string labels."
+                    "List of dicts — inspect `items` key or similar for the actual string labels."
                 )
             elif fname == "equipment" and shape == "localized-html-blob":
                 notes_lines.append(
@@ -288,11 +285,8 @@ async def _recon() -> None:
             f"- JSON path: `{path_str}`\n"
             f"- Shape: {shape}\n"
             f"- Excerpt:\n"
-            f"  ```json\n"
-            + textwrap.indent(excerpt, "  ")
-            + "\n  ```\n"
-            f"- Notes: "
-            + (" ".join(notes_lines) if notes_lines else "No special notes.")
+            f"  ```json\n" + textwrap.indent(excerpt, "  ") + "\n  ```\n"
+            "- Notes: " + (" ".join(notes_lines) if notes_lines else "No special notes.")
         )
 
     if not open_issues:

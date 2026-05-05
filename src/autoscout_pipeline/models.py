@@ -36,6 +36,13 @@ class Listing(BaseModel):
     last_seen: datetime
     raw: dict[str, Any] | None = None
 
+    # Optional enrichment fields populated from the detail page (Step 2).
+    # transmission is intentionally absent — it is read from raw["vehicle"]["transmission"].
+    equipment: list[str] = Field(default_factory=list)
+    exterior_color: str | None = None
+    interior_color: str | None = None
+    upholstery: str | None = None
+
     @field_validator("first_seen", "last_seen", mode="after")
     @classmethod
     def _first_last_seen_tz_aware(cls, v: datetime) -> datetime:

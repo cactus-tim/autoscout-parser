@@ -393,6 +393,124 @@ class TestRunRecord:
 
 
 # ---------------------------------------------------------------------------
+# Listing enrichment fields tests
+# ---------------------------------------------------------------------------
+
+
+class TestListingEnrichmentFields:
+    """Tests for the four optional enrichment fields added in Step 2."""
+
+    def test_equipment_defaults_to_empty_list(self):
+        listing = Listing.model_validate(make_listing())
+        assert listing.equipment == []
+
+    def test_exterior_color_defaults_to_none(self):
+        listing = Listing.model_validate(make_listing())
+        assert listing.exterior_color is None
+
+    def test_interior_color_defaults_to_none(self):
+        listing = Listing.model_validate(make_listing())
+        assert listing.interior_color is None
+
+    def test_upholstery_defaults_to_none(self):
+        listing = Listing.model_validate(make_listing())
+        assert listing.upholstery is None
+
+    def test_equipment_can_be_populated(self):
+        listing = Listing.model_validate(
+            make_listing(equipment=["Klimaanlage", "SHZ", "Navi"])
+        )
+        assert listing.equipment == ["Klimaanlage", "SHZ", "Navi"]
+
+    def test_equipment_populated_is_list_of_str(self):
+        listing = Listing.model_validate(
+            make_listing(equipment=["DAB", "PDC"])
+        )
+        assert isinstance(listing.equipment, list)
+        assert all(isinstance(item, str) for item in listing.equipment)
+
+    def test_equipment_empty_list_accepted(self):
+        listing = Listing.model_validate(make_listing(equipment=[]))
+        assert listing.equipment == []
+
+    def test_exterior_color_can_be_string(self):
+        listing = Listing.model_validate(make_listing(exterior_color="Hellblau"))
+        assert listing.exterior_color == "Hellblau"
+
+    def test_exterior_color_can_be_none(self):
+        listing = Listing.model_validate(make_listing(exterior_color=None))
+        assert listing.exterior_color is None
+
+    def test_interior_color_can_be_string(self):
+        listing = Listing.model_validate(make_listing(interior_color="Black"))
+        assert listing.interior_color == "Black"
+
+    def test_interior_color_can_be_none(self):
+        listing = Listing.model_validate(make_listing(interior_color=None))
+        assert listing.interior_color is None
+
+    def test_upholstery_can_be_string(self):
+        listing = Listing.model_validate(make_listing(upholstery="Leather"))
+        assert listing.upholstery == "Leather"
+
+    def test_upholstery_can_be_none(self):
+        listing = Listing.model_validate(make_listing(upholstery=None))
+        assert listing.upholstery is None
+
+    def test_model_dump_round_trip_preserves_equipment(self):
+        original = Listing.model_validate(
+            make_listing(equipment=["Klimaanlage", "SHZ"])
+        )
+        dumped = original.model_dump()
+        restored = Listing.model_validate(dumped)
+        assert restored.equipment == ["Klimaanlage", "SHZ"]
+
+    def test_model_dump_round_trip_preserves_exterior_color(self):
+        original = Listing.model_validate(make_listing(exterior_color="Island Blue"))
+        dumped = original.model_dump()
+        restored = Listing.model_validate(dumped)
+        assert restored.exterior_color == "Island Blue"
+
+    def test_model_dump_round_trip_preserves_interior_color(self):
+        original = Listing.model_validate(make_listing(interior_color="Carbon Black"))
+        dumped = original.model_dump()
+        restored = Listing.model_validate(dumped)
+        assert restored.interior_color == "Carbon Black"
+
+    def test_model_dump_round_trip_preserves_upholstery(self):
+        original = Listing.model_validate(make_listing(upholstery="Cloth"))
+        dumped = original.model_dump()
+        restored = Listing.model_validate(dumped)
+        assert restored.upholstery == "Cloth"
+
+    def test_model_dump_includes_none_color_fields(self):
+        listing = Listing.model_validate(make_listing())
+        dumped = listing.model_dump()
+        assert "exterior_color" in dumped
+        assert "interior_color" in dumped
+        assert "upholstery" in dumped
+        assert dumped["exterior_color"] is None
+        assert dumped["interior_color"] is None
+        assert dumped["upholstery"] is None
+
+    def test_model_dump_includes_equipment_field(self):
+        listing = Listing.model_validate(make_listing())
+        dumped = listing.model_dump()
+        assert "equipment" in dumped
+        assert dumped["equipment"] == []
+
+    def test_no_transmission_field_on_listing(self):
+        """transmission must NOT be a Listing field — it stays in raw['vehicle']['transmission']."""
+        listing = Listing.model_validate(make_listing())
+        assert not hasattr(listing, "transmission")
+
+    def test_transmission_kwarg_silently_ignored(self):
+        """Pydantic extra='ignore' must silently drop unknown 'transmission' kwarg."""
+        listing = Listing.model_validate(make_listing(transmission="Manual"))
+        assert not hasattr(listing, "transmission")
+
+
+# ---------------------------------------------------------------------------
 # Import completeness test
 # ---------------------------------------------------------------------------
 

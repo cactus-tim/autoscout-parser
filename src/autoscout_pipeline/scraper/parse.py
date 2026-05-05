@@ -254,10 +254,109 @@ def parse_listings_page(data: dict[str, Any]) -> list[Listing]:
     return listings
 
 
+def _flatten_equipment(raw: Any) -> list[str]:
+    """Flatten the AS24 equipment value to a plain ``list[str]``.
+
+    AutoScout24 uses a **dict-of-categories** shape (as of 2026-05-05):
+
+    .. code-block:: json
+
+        {
+          "comfortAndConvenience": [
+            {"id": "Automatic climate control, 2 zones", "categoryName": "...", "categoryId": "..."},
+            ...
+          ],
+          "entertainmentAndMedia": [...],
+          "extras": [...],
+          "safetyAndSecurity": [...]
+        }
+
+    Each category value is a list of dicts with an ``id`` key containing the
+    human-readable feature name.
+
+    Handled input shapes (robust to schema drift):
+
+    * ``None`` or falsy → return ``[]``
+    * ``dict`` (categories → list-of-dicts-with-id)  → flatten all ``.id`` values (primary)
+    * ``dict`` (categories → list-of-str)             → flatten all strings (fallback)
+    * ``list[str]``                                   → return as-is (pass-through)
+    * ``list[dict]`` with ``"items"`` sub-key         → flatten ``.items[*].id`` values
+    * ``list[dict]`` with ``"id"`` key                → collect ``.id`` values directly
+    * any other shape                                 → return ``[]`` (log a warning)
+
+    JSON path (detail page):
+        ``props.pageProps.listingDetails.vehicle.equipment``
+    """
+    if not raw:
+        return []
+
+    # Primary shape: dict-of-categories → list-of-dicts-with-id
+    if isinstance(raw, dict):
+        result: list[str] = []
+        for category_list in raw.values():
+            if not isinstance(category_list, list):
+                continue
+            for item in category_list:
+                if isinstance(item, dict):
+                    # Preferred: item["id"] is the feature label string
+                    id_val = item.get("id")
+                    if id_val and isinstance(id_val, str):
+                        result.append(id_val)
+                elif isinstance(item, str):
+                    # Fallback: plain string inside category list
+                    if item:
+                        result.append(item)
+        return result
+
+    # Flat list passthrough
+    if isinstance(raw, list):
+        # list[str] passthrough
+        if all(isinstance(x, str) for x in raw):
+            return [x for x in raw if x]
+
+        # list[dict] — check for items sub-key (another possible AS24 shape)
+        result = []
+        for item in raw:
+            if isinstance(item, dict):
+                # Shape: {"items": [{"id": "..."}]}
+                sub_items = item.get("items")
+                if isinstance(sub_items, list):
+                    for sub in sub_items:
+                        if isinstance(sub, dict):
+                            id_val = sub.get("id")
+                            if id_val and isinstance(id_val, str):
+                                result.append(id_val)
+                        elif isinstance(sub, str) and sub:
+                            result.append(sub)
+                else:
+                    # Shape: {"id": "..."}
+                    id_val = item.get("id")
+                    if id_val and isinstance(id_val, str):
+                        result.append(id_val)
+        if result:
+            return result
+
+        # Unknown list shape — log and return empty
+        logger.debug("_flatten_equipment: unrecognised list shape, returning empty")
+        return []
+
+    logger.debug("_flatten_equipment: unrecognised raw type %s, returning empty", type(raw).__name__)
+    return []
+
+
 def parse_listing_detail(data: dict[str, Any]) -> Listing:
     """Parse a single ``Listing`` from a detail-page ``__NEXT_DATA__`` dict.
 
-    Reads from ``props.pageProps.listingDetails``.
+    Reads from ``props.pageProps.listingDetails``.  Enrichment fields
+    (``equipment``, ``exterior_color``, ``interior_color``, ``upholstery``)
+    are populated from the ``vehicle`` sub-object using the schema captured on
+    2026-05-05 (see recon-notes.md).
+
+    JSON paths for enrichment fields:
+        - equipment:       ``listingDetails.vehicle.equipment``  (dict-of-categories)
+        - exterior_color:  ``listingDetails.vehicle.bodyColor``  (string)
+        - interior_color:  ``listingDetails.vehicle.upholsteryColor``  (string, NOT interiorColor)
+        - upholstery:      ``listingDetails.vehicle.upholstery``  (string, e.g. "Cloth")
 
     Parameters
     ----------
@@ -267,7 +366,7 @@ def parse_listing_detail(data: dict[str, Any]) -> Listing:
     Returns
     -------
     Listing
-        The parsed listing.
+        The parsed listing.  Missing enrichment fields default to ``[]`` / ``None``.
 
     Raises
     ------
@@ -284,4 +383,40 @@ def parse_listing_detail(data: dict[str, Any]) -> Listing:
     listing = _listing_from_dict(raw)
     if listing is None:
         raise ValueError("Unable to construct Listing from listingDetails dict")
-    return listing
+
+    # Enrich with detail-page-only fields from vehicle sub-object
+    vehicle: dict[str, Any] = raw.get("vehicle") or {}
+    if not isinstance(vehicle, dict):
+        vehicle = {}
+
+    # URL: the detail page stores the canonical URL at listingDetails.webPage
+    # (the "url" key is absent in the live detail schema).
+    # Fall back to webPage if _listing_from_dict left url empty.
+    url = listing.url
+    if not url:
+        web_page = raw.get("webPage") or ""
+        if isinstance(web_page, str) and web_page:
+            url = web_page
+
+    # equipment: vehicle.equipment (dict-of-categories shape)
+    equipment = _flatten_equipment(vehicle.get("equipment"))
+
+    # exterior_color: vehicle.bodyColor (normalised colour string)
+    exterior_color_raw = vehicle.get("bodyColor")
+    exterior_color = str(exterior_color_raw) if exterior_color_raw is not None else None
+
+    # interior_color: vehicle.upholsteryColor (NOTE: not interiorColor / interior)
+    interior_color_raw = vehicle.get("upholsteryColor")
+    interior_color = str(interior_color_raw) if interior_color_raw is not None else None
+
+    # upholstery: vehicle.upholstery (material type, e.g. "Cloth", "Leather")
+    upholstery_raw = vehicle.get("upholstery")
+    upholstery = str(upholstery_raw) if upholstery_raw is not None else None
+
+    return listing.model_copy(update={
+        "url": url,
+        "equipment": equipment,
+        "exterior_color": exterior_color,
+        "interior_color": interior_color,
+        "upholstery": upholstery,
+    })

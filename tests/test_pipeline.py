@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import datetime as dt
 import inspect
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 import autoscout_pipeline.pipeline as pipeline_mod
 from autoscout_pipeline.models import Listing, ListingScore, RunRecord, ScoredListing
@@ -68,6 +71,9 @@ def _make_settings(**overrides) -> MagicMock:
     s.tg_token = "tg-token"
     s.tg_chat_id = "-1001234"
     s.score_notify_threshold = 8
+    s.as24_enrich = True
+    s.as24_throttle_min = 0.0
+    s.as24_throttle_max = 0.0
     for k, v in overrides.items():
         setattr(s, k, v)
     return s
@@ -114,6 +120,11 @@ async def test_pipeline_skips_listings_already_in_sheet():
             _PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results
         ) as mock_score_many,
         patch(_PATCH_NOTIFIER),
+        patch(
+            "autoscout_pipeline.pipeline.enrich_with_details",
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ),
     ):
         mock_client = MockSheets.return_value
         # lid-0 already exists in the sheet
@@ -163,6 +174,11 @@ async def test_pipeline_handles_scrape_error():
         patch(_PATCH_SCORER),
         patch(_PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=[]),
         patch(_PATCH_NOTIFIER),
+        patch(
+            "autoscout_pipeline.pipeline.enrich_with_details",
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ),
     ):
         mock_client = MockSheets.return_value
         mock_client.get_existing_ids.return_value = {}
@@ -201,6 +217,11 @@ async def test_pipeline_passes_all_scored_to_notifier_for_threshold_filtering():
         patch(_PATCH_SCORER),
         patch(_PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results),
         patch(_PATCH_NOTIFIER) as MockNotifier,
+        patch(
+            "autoscout_pipeline.pipeline.enrich_with_details",
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ),
     ):
         mock_client = MockSheets.return_value
         mock_client.get_existing_ids.return_value = {}
@@ -239,6 +260,11 @@ async def test_pipeline_dry_run_makes_no_writes():
             _PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results
         ) as mock_score_many,
         patch(_PATCH_NOTIFIER) as MockNotifier,
+        patch(
+            "autoscout_pipeline.pipeline.enrich_with_details",
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ),
     ):
         mock_notifier_instance = MockNotifier.return_value
         mock_notifier_instance.send_batch = AsyncMock(return_value=0)
@@ -276,6 +302,11 @@ async def test_pipeline_records_run_summary():
         patch(_PATCH_SCORER),
         patch(_PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results),
         patch(_PATCH_NOTIFIER) as MockNotifier,
+        patch(
+            "autoscout_pipeline.pipeline.enrich_with_details",
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ),
     ):
         mock_client = MockSheets.return_value
         mock_client.get_existing_ids.return_value = {
@@ -338,6 +369,11 @@ async def test_pipeline_skips_telegram_when_no_token():
         patch(_PATCH_SCORER),
         patch(_PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results),
         patch(_PATCH_NOTIFIER) as MockNotifier,
+        patch(
+            "autoscout_pipeline.pipeline.enrich_with_details",
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ),
     ):
         mock_client = MockSheets.return_value
         mock_client.get_existing_ids.return_value = {}
@@ -349,3 +385,262 @@ async def test_pipeline_skips_telegram_when_no_token():
         await pipeline_mod.run(settings, dry_run=False)
 
     MockNotifier.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Helpers for transmission/base-cooper filter tests
+# ---------------------------------------------------------------------------
+
+_ENRICH_PATCH = "autoscout_pipeline.pipeline.enrich_with_details"
+
+
+def _make_listing_with_raw(
+    listing_id: str = "lid-raw",
+    model: str = "Cooper",
+    raw: dict | None = None,
+) -> Listing:
+    """Build a Listing with an explicit raw dict.
+
+    IMPORTANT: do NOT pass transmission as a keyword argument (e.g. transmission="Manual").
+    Listing uses ConfigDict(extra="ignore") which silently swallows unknown fields,
+    making filter tests pass for the wrong reason.  Always use raw={"vehicle": {"transmission": "..."}}
+    to exercise the actual filter code path.
+    """
+    return Listing(
+        listing_id=listing_id,
+        url=f"https://www.autoscout24.com/lst/{listing_id}",
+        brand="MINI",
+        model=model,
+        year=2022,
+        mileage_km=30_000,
+        price_eur=19_000,
+        location="Berlin",
+        country="DE",
+        first_seen=_NOW,
+        last_seen=_NOW,
+        raw=raw or {},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: transmission filter — drops manual
+# ---------------------------------------------------------------------------
+
+
+def test_transmission_filter_drops_manual():
+    """_is_automatic must return False for 'Manual' transmission."""
+    listing = _make_listing_with_raw(raw={"vehicle": {"transmission": "Manual"}})
+    assert pipeline_mod._is_automatic(listing) is False
+
+
+def test_transmission_filter_drops_manuell_german():
+    """_is_automatic must return False for German 'Manuell' transmission."""
+    listing = _make_listing_with_raw(raw={"vehicle": {"transmission": "Manuell"}})
+    assert pipeline_mod._is_automatic(listing) is False
+
+
+@pytest.mark.parametrize(
+    "transmission",
+    [
+        "Automatic",
+        "Automatik",
+        "DKG",
+        "DSG",
+        "S tronic",
+        "Steptronic",
+    ],
+)
+def test_transmission_filter_keeps_automatic(transmission: str):
+    """_is_automatic must return True for all known automatic/DCT/DSG variants."""
+    listing = _make_listing_with_raw(raw={"vehicle": {"transmission": transmission}})
+    assert pipeline_mod._is_automatic(listing) is True
+
+
+def test_transmission_filter_keeps_unknown():
+    """_is_automatic must return True when raw.vehicle.transmission is empty or absent."""
+    # Empty string
+    listing_empty = _make_listing_with_raw(raw={"vehicle": {"transmission": ""}})
+    assert pipeline_mod._is_automatic(listing_empty) is True
+
+    # Missing key
+    listing_no_key = _make_listing_with_raw(raw={"vehicle": {}})
+    assert pipeline_mod._is_automatic(listing_no_key) is True
+
+    # Missing vehicle entirely
+    listing_no_vehicle = _make_listing_with_raw(raw={})
+    assert pipeline_mod._is_automatic(listing_no_vehicle) is True
+
+    # None raw
+    listing_none_raw = _make_listing_with_raw(raw=None)
+    assert pipeline_mod._is_automatic(listing_none_raw) is True
+
+
+# ---------------------------------------------------------------------------
+# Test 9: base-cooper filter — drops variants
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "Cooper S",
+        "Cooper-S",
+        "Cooper.S",
+        "Cooper/S",
+        "Cooper SE",
+        "Cooper SD",
+        "Cooper SDS",
+        "Cooper JCW",
+        "John Cooper Works",
+    ],
+)
+def test_base_cooper_filter_drops_variants(model: str):
+    """_is_base_cooper must return False for all non-base Cooper variants."""
+    listing = _make_listing_with_raw(model=model)
+    assert pipeline_mod._is_base_cooper(listing) is False
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "Cooper",
+        "MINI Cooper",
+        "Cooper  ",  # trailing space
+    ],
+)
+def test_base_cooper_filter_keeps_base(model: str):
+    """_is_base_cooper must return True for plain Cooper / MINI Cooper."""
+    listing = _make_listing_with_raw(model=model)
+    assert pipeline_mod._is_base_cooper(listing) is True
+
+
+# ---------------------------------------------------------------------------
+# Test 10: filter ordering — all four log lines appear in correct order
+# ---------------------------------------------------------------------------
+
+
+async def test_filter_ordering_logs_funnel(caplog):
+    """All four Trim filter log lines must appear at INFO level, in order:
+    1. include='cooper'
+    2. exclude=...
+    3. base-cooper-only
+    4. automatic-only
+    """
+    listings = [
+        _make_listing_with_raw(listing_id="lid-1", model="Cooper"),
+        _make_listing_with_raw(listing_id="lid-2", model="Cooper S"),
+    ]
+    scored_results = [_make_scored("lid-1", score=7)]
+
+    with (
+        caplog.at_level(logging.INFO, logger="autoscout_pipeline.pipeline"),
+        patch(_PATCH_CONF_LOG),
+        patch(_PATCH_ITER, side_effect=_make_async_gen(listings)),
+        patch(_PATCH_SHEETS) as MockSheets,
+        patch(_PATCH_SCORER),
+        patch(_PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results),
+        patch(_PATCH_NOTIFIER),
+        patch(
+            _ENRICH_PATCH,
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ),
+    ):
+        mock_client = MockSheets.return_value
+        mock_client.get_existing_ids.return_value = {}
+        mock_client.upsert_listings.return_value = None
+        mock_client.record_run.return_value = None
+
+        settings = _make_settings(as24_enrich=False)
+        await pipeline_mod.run(settings, dry_run=False)
+
+    messages = [r.message for r in caplog.records if r.levelno == logging.INFO]
+    # Find the indices of the four filter log lines
+    include_idx = next(
+        (i for i, m in enumerate(messages) if "include=" in m and "cooper" in m), None
+    )
+    exclude_idx = next((i for i, m in enumerate(messages) if "exclude=" in m), None)
+    base_cooper_idx = next((i for i, m in enumerate(messages) if "base-cooper-only" in m), None)
+    automatic_idx = next((i for i, m in enumerate(messages) if "automatic-only" in m), None)
+
+    assert include_idx is not None, "Log line 'Trim filter include=cooper' not found"
+    assert exclude_idx is not None, "Log line 'Trim filter exclude=...' not found"
+    assert base_cooper_idx is not None, "Log line 'Trim filter base-cooper-only' not found"
+    assert automatic_idx is not None, "Log line 'Trim filter automatic-only' not found"
+
+    # Verify ordering
+    assert include_idx < exclude_idx, "include filter must log before exclude filter"
+    assert exclude_idx < base_cooper_idx, "exclude filter must log before base-cooper filter"
+    assert base_cooper_idx < automatic_idx, "base-cooper filter must log before automatic filter"
+
+
+# ---------------------------------------------------------------------------
+# Test 11: enrichment wiring — called when as24_enrich=True
+# ---------------------------------------------------------------------------
+
+
+async def test_pipeline_calls_enrich_when_as24_enrich_true():
+    """enrich_with_details must be called once with the new_listings list when as24_enrich=True."""
+    listings = [_make_listing_with_raw(listing_id="lid-1", model="Cooper")]
+    scored_results = [_make_scored("lid-1", score=7)]
+
+    with (
+        patch(_PATCH_CONF_LOG),
+        patch(_PATCH_ITER, side_effect=_make_async_gen(listings)),
+        patch(_PATCH_SHEETS) as MockSheets,
+        patch(_PATCH_SCORER),
+        patch(_PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results),
+        patch(_PATCH_NOTIFIER),
+        patch(
+            _ENRICH_PATCH,
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ) as mock_enrich,
+    ):
+        mock_client = MockSheets.return_value
+        mock_client.get_existing_ids.return_value = {}
+        mock_client.upsert_listings.return_value = None
+        mock_client.record_run.return_value = None
+
+        settings = _make_settings(as24_enrich=True)
+        await pipeline_mod.run(settings, dry_run=False)
+
+    mock_enrich.assert_called_once()
+    # Verify the first positional arg is a list of Listing objects
+    called_listings = mock_enrich.call_args[0][0]
+    assert isinstance(called_listings, list)
+    assert all(isinstance(lst, Listing) for lst in called_listings)
+
+
+# ---------------------------------------------------------------------------
+# Test 12: enrichment wiring — NOT called when as24_enrich=False
+# ---------------------------------------------------------------------------
+
+
+async def test_pipeline_skips_enrich_when_as24_enrich_false():
+    """enrich_with_details must NOT be called when as24_enrich=False."""
+    listings = [_make_listing_with_raw(listing_id="lid-1", model="Cooper")]
+    scored_results = [_make_scored("lid-1", score=7)]
+
+    with (
+        patch(_PATCH_CONF_LOG),
+        patch(_PATCH_ITER, side_effect=_make_async_gen(listings)),
+        patch(_PATCH_SHEETS) as MockSheets,
+        patch(_PATCH_SCORER),
+        patch(_PATCH_SCORE_MANY, new_callable=AsyncMock, return_value=scored_results),
+        patch(_PATCH_NOTIFIER),
+        patch(
+            _ENRICH_PATCH,
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ) as mock_enrich,
+    ):
+        mock_client = MockSheets.return_value
+        mock_client.get_existing_ids.return_value = {}
+        mock_client.upsert_listings.return_value = None
+        mock_client.record_run.return_value = None
+
+        settings = _make_settings(as24_enrich=False)
+        await pipeline_mod.run(settings, dry_run=False)
+
+    mock_enrich.assert_not_called()

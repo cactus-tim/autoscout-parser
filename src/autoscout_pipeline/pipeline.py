@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -17,10 +18,11 @@ import typer
 
 from autoscout_pipeline.config import Settings
 from autoscout_pipeline.logging_setup import configure_logging
-from autoscout_pipeline.models import RunRecord, ScoredListing
+from autoscout_pipeline.models import Listing, RunRecord, ScoredListing
 from autoscout_pipeline.notify.telegram import TelegramNotifier
 from autoscout_pipeline.scoring.batch import score_many
 from autoscout_pipeline.scoring.scorer import LLMScorer
+from autoscout_pipeline.scraper.enrich import enrich_with_details
 from autoscout_pipeline.scraper.errors import EmptyResultsError
 from autoscout_pipeline.scraper.search import iter_listings
 from autoscout_pipeline.sheets.client import SheetsClient
@@ -58,6 +60,63 @@ MODEL_NAME_EXCLUDES: tuple[str, ...] = (
     "roadster",
     "coupe",
 )
+
+# ---------------------------------------------------------------------------
+# Pre-LLM transmission filter
+# ---------------------------------------------------------------------------
+
+AUTOMATIC_TOKENS = (
+    "automatic",
+    "automatik",
+    "automat",
+    "dkg",
+    "dct",
+    "dsg",
+    "stronic",
+    "s tronic",
+    "tiptronic",
+    "steptronic",
+)
+
+
+def _is_automatic(listing: Listing) -> bool:
+    """Return True if the listing has an automatic (or unknown) transmission.
+
+    Reads from ``listing.raw["vehicle"]["transmission"]``, NOT from a model
+    field (which does not exist — ``transmission`` stays in ``raw`` per plan).
+    Unknown or missing transmission returns True (defensive keep).
+    """
+    raw = listing.raw or {}
+    vehicle = raw.get("vehicle") if isinstance(raw.get("vehicle"), dict) else {}
+    t = (vehicle.get("transmission") or "").strip().lower()
+    if not t:
+        return True  # unknown → keep defensively
+    return any(tok in t for tok in AUTOMATIC_TOKENS)
+
+
+# ---------------------------------------------------------------------------
+# Pre-LLM base-Cooper-only filter
+# ---------------------------------------------------------------------------
+
+VARIANT_REJECT_TOKENS = frozenset({"s", "se", "sd", "sds", "jcw"})
+JOHN_COOPER_WORKS_RE = re.compile(r"john\s*cooper\s*works", re.I)
+
+
+def _is_base_cooper(listing: Listing) -> bool:
+    """Return True only for base Cooper (no S / SE / SD / JCW / John Cooper Works).
+
+    Uses token-based matching to handle hyphens, dots, slashes, and spaces.
+    Returns False for an empty model string.
+
+    Note: the no-separator form ``CooperS`` is a known deferred edge case.
+    """
+    m = (listing.model or "").lower()
+    if not m:
+        return False
+    if JOHN_COOPER_WORKS_RE.search(m):
+        return False
+    tokens = set(re.split(r"[\s\-./]+", m))
+    return not VARIANT_REJECT_TOKENS & tokens
 
 
 async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
@@ -147,6 +206,14 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
                 len(all_listings),
             )
 
+        before = len(all_listings)
+        all_listings = [lst for lst in all_listings if _is_base_cooper(lst)]
+        logger.info("Trim filter base-cooper-only: %d → %d listings", before, len(all_listings))
+
+        before = len(all_listings)
+        all_listings = [lst for lst in all_listings if _is_automatic(lst)]
+        logger.info("Trim filter automatic-only: %d → %d listings", before, len(all_listings))
+
         # --- 4. Dedup ---
         if dry_run:
             # In dry-run mode we score everything (no sheet writes, but want preview)
@@ -160,6 +227,14 @@ async def run(settings: Settings, dry_run: bool = False) -> RunRecord:
             len(new_listings),
             len(all_listings) - len(new_listings),
         )
+
+        # --- 4a. Enrich new listings with detail-page data ---
+        if settings.as24_enrich and new_listings:
+            new_listings = await enrich_with_details(
+                new_listings,
+                throttle_min=settings.as24_throttle_min,
+                throttle_max=settings.as24_throttle_max,
+            )
 
         # --- 5. Score new listings ---
         scorer = LLMScorer(

@@ -184,6 +184,12 @@ async def _smoke() -> None:
             new=MagicMock(),
         ),
         patch("httpx.AsyncClient.post", new=httpx_post_mock),
+        # Passthrough patch for enrich_with_details so no real browser is launched.
+        patch(
+            "autoscout_pipeline.pipeline.enrich_with_details",
+            new_callable=AsyncMock,
+            side_effect=lambda lst, **kw: lst,
+        ),
     ):
         record = await run(settings, dry_run=False)
 

@@ -59,6 +59,11 @@ def render_listing(listing: Listing) -> str:
     model_text = vehicle.get("modelVersionInput") or vehicle.get("subtitle") or ""
     seller_type = seller.get("type") or "unknown"
 
+    exterior_color = listing.exterior_color or "unknown"
+    interior_color = listing.interior_color or "unknown"
+    upholstery = listing.upholstery or "unknown"
+    equipment_list = "; ".join(listing.equipment) if listing.equipment else "unknown"
+
     lines = [
         f"brand: {listing.brand}",
         f"model: {listing.model}",
@@ -71,6 +76,10 @@ def render_listing(listing: Listing) -> str:
         f"location: {listing.location}",
         f"country: {listing.country}",
         f"seller_type: {seller_type}",
+        f"exterior_color: {exterior_color}",
+        f"interior_color: {interior_color}",
+        f"upholstery: {upholstery}",
+        f"equipment_list: {equipment_list}",
         f"model_text: {model_text}",
         f"url: {listing.url}",
     ]

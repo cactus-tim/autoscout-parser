@@ -38,8 +38,9 @@ keyword-only weight is lower.
 |---|---|---|
 | **Panoramic roof — field-confirmed** (`Panoramadach` / `Panoramic glass roof` / `Panorama` / `PSD` literally in `equipment_list`) | **+2** | `equipment_list` |
 | **Panoramic roof — keyword-only** (token in `model_text` but NOT in `equipment_list`) | **+1.5** | `model_text` |
-| **Leather upholstery — field-confirmed** (`upholstery` is `Leather` / `Leder` / `Lederausstattung` / `Part leather` / `Teilleder`) | **+2** | `upholstery` |
-| **Leather upholstery — keyword-only** (`Leder` token in `model_text`, `upholstery` is "unknown" or absent) | **+1.5** | `model_text` |
+| **Leather upholstery — field-confirmed FULL leather** (`upholstery` is exactly `Leather` / `Leder` / `Lederausstattung` / `Vollleder`) | **+2** | `upholstery` |
+| **Leather upholstery — keyword-only FULL leather** (`Leder` / `Leather` token in `model_text` AND `upholstery` is "unknown" or absent) | **+1.5** | `model_text` |
+| **Part leather / Teilleder** (`upholstery` literally `Part leather` / `Teilleder` / `Stoff/Leder` — combined leather + cloth) | **0** | `upholstery` |
 | **Light-blue strict exterior** (Hellblau / Island Blue / Iceberg Blue / Electric Blue / Light Blue / Light-Blue Metallic / LightBlueMetallic) | +1 | `exterior_color` |
 | Other blue (`Blue` / `Blau` / `British Racing Blue` / `Midnight Blue`) | 0, mention in pros only | `exterior_color` |
 | **Black interior** (`Schwarz` / `Black` / `Carbon Black` / `Lounge Carbon Black`) | +0.5 | `interior_color` |
@@ -50,6 +51,18 @@ keyword-only weight is lower.
 Note: leather "field-confirmed" AND leather "keyword-only" are mutually
 exclusive — if `upholstery` already says Leather, you take +2 and STOP. Same
 for panoramic roof.
+
+**IMPORTANT — Part leather / Teilleder is NOT leather for scoring purposes.**
+Part-leather is a leather + cloth combination (sport seats with leather
+bolsters and cloth centres, etc.). The buyer wants FULL leather only. So:
+- `upholstery == "Leather"` / `"Leder"` / `"Lederausstattung"` / `"Vollleder"` → +2
+- `upholstery == "Part leather"` / `"Teilleder"` / `"Stoff/Leder"` → **+0** (do NOT
+  fall through to the keyword-only +1.5 row — Part leather is its own state,
+  it explicitly disqualifies the leather bonus)
+- If you see `Leder` in the title and `upholstery` is `Part leather` →
+  trust the structured field, score 0.
+
+Mention "Part leather (комбинированный салон, не полная кожа)" in `cons`.
 
 # SHZ unknown handling (softened)
 

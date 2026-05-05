@@ -21,7 +21,6 @@ browser session produces it.
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Optional, Type
 
 from camoufox.async_api import AsyncCamoufox
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -56,9 +55,7 @@ async def fetch_page_html(url: str) -> str:
         page = await browser.new_page()
         try:
             await page.goto(url, wait_until="networkidle", timeout=45000)
-            await page.wait_for_selector(
-                "script#__NEXT_DATA__", state="attached", timeout=15000
-            )
+            await page.wait_for_selector("script#__NEXT_DATA__", state="attached", timeout=15000)
             html: str = await page.content()
         finally:
             await page.close()
@@ -88,19 +85,19 @@ class BrowserSession:
     """
 
     def __init__(self) -> None:
-        self._browser_cm: Optional[object] = None
-        self._browser: Optional[object] = None
+        self._browser_cm: object | None = None
+        self._browser: object | None = None
 
-    async def __aenter__(self) -> "BrowserSession":
+    async def __aenter__(self) -> BrowserSession:
         self._browser_cm = AsyncCamoufox(headless=True, geoip=True, locale="de-DE")
         self._browser = await self._browser_cm.__aenter__()  # type: ignore[union-attr]
         return self
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> bool:
         if self._browser_cm is not None:
             await self._browser_cm.__aexit__(exc_type, exc_val, exc_tb)  # type: ignore[union-attr]
@@ -119,7 +116,7 @@ class BrowserSession:
         to be attached (``state="attached"``, timeout 15 s), captures the page HTML,
         and closes the page.
 
-        Tenacity retries up to 3 times with exponential backoff (2–15 s) on
+        Tenacity retries up to 3 times with exponential backoff (2-15 s) on
         :class:`~playwright.async_api.TimeoutError`.
 
         Parameters
@@ -147,9 +144,7 @@ class BrowserSession:
         page = await self._browser.new_page()  # type: ignore[union-attr]
         try:
             await page.goto(url, wait_until="networkidle", timeout=45000)
-            await page.wait_for_selector(
-                "script#__NEXT_DATA__", state="attached", timeout=15000
-            )
+            await page.wait_for_selector("script#__NEXT_DATA__", state="attached", timeout=15000)
             html: str = await page.content()
         finally:
             await page.close()

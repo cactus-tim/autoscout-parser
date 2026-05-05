@@ -6,7 +6,7 @@ browser is required.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -27,9 +27,7 @@ class TestBrowserSessionLifecycle:
         mock_cm.__aenter__ = AsyncMock(return_value=mock_browser)
         mock_cm.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm
-        ):
+        with patch("autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm):
             from autoscout_pipeline.scraper.fetch import BrowserSession
 
             async with BrowserSession() as session:
@@ -53,9 +51,7 @@ class TestBrowserSessionLifecycle:
         mock_cm.__aenter__ = AsyncMock(return_value=mock_browser)
         mock_cm.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm
-        ):
+        with patch("autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm):
             from autoscout_pipeline.scraper.fetch import BrowserSession
 
             async with BrowserSession() as session:
@@ -87,9 +83,7 @@ class TestBrowserSessionFetch:
         mock_cm.__aenter__ = AsyncMock(return_value=mock_browser)
         mock_cm.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm
-        ):
+        with patch("autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm):
             from autoscout_pipeline.scraper.fetch import BrowserSession
 
             async with BrowserSession() as session:
@@ -111,9 +105,7 @@ class TestBrowserSessionFetch:
         mock_cm.__aenter__ = AsyncMock(return_value=mock_browser)
         mock_cm.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm
-        ):
+        with patch("autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm):
             from autoscout_pipeline.scraper.fetch import BrowserSession
 
             async with BrowserSession() as session:
@@ -136,9 +128,7 @@ class TestBrowserSessionFetch:
         mock_cm.__aenter__ = AsyncMock(return_value=mock_browser)
         mock_cm.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm
-        ):
+        with patch("autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm):
             from autoscout_pipeline.scraper.fetch import BrowserSession
 
             async with BrowserSession() as session:
@@ -169,9 +159,7 @@ class TestBrowserSessionRetry:
         mock_cm.__aenter__ = AsyncMock(return_value=mock_browser)
         mock_cm.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm
-        ):
+        with patch("autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm):
             from autoscout_pipeline.scraper.fetch import BrowserSession
 
             # Patch asyncio.sleep to skip actual backoff waits in tests
@@ -194,17 +182,13 @@ class TestBrowserSessionRetry:
         mock_page_ok.content = AsyncMock(return_value="<html>recovered</html>")
 
         # First call returns fail page, subsequent calls return ok page
-        mock_browser.new_page = AsyncMock(
-            side_effect=[mock_page_fail, mock_page_ok]
-        )
+        mock_browser.new_page = AsyncMock(side_effect=[mock_page_fail, mock_page_ok])
 
         mock_cm = MagicMock()
         mock_cm.__aenter__ = AsyncMock(return_value=mock_browser)
         mock_cm.__aexit__ = AsyncMock(return_value=False)
 
-        with patch(
-            "autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm
-        ):
+        with patch("autoscout_pipeline.scraper.fetch.AsyncCamoufox", return_value=mock_cm):
             from autoscout_pipeline.scraper.fetch import BrowserSession
 
             # Patch asyncio.sleep to skip tenacity backoff waits in tests
